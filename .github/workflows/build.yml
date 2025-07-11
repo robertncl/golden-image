@@ -48,7 +48,7 @@ jobs:
       - name: Build base image for LTS version
         uses: docker/build-push-action@v5
         with:
-          context: ./base-images/${{ matrix.os }}
+          context: .
           file: ./base-images/${{ matrix.os }}/Dockerfile.${{ matrix.version }}
           push: true
           tags: ${{ env.REGISTRY }}/${{ matrix.os }}-hardened:${{ matrix.version }}
