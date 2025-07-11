@@ -22,8 +22,11 @@ jobs:
         id: set-matrix
         run: |
           chmod +x scripts/generate-github-matrix.sh
-          MATRIX_JSON=$(./scripts/generate-github-matrix.sh json)
-          echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
+          {
+            echo "matrix<<EOF"
+            ./scripts/generate-github-matrix.sh json
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
 
   # Build and test base images
   build-base-images:
@@ -70,8 +73,11 @@ jobs:
         id: set-platform-matrix
         run: |
           chmod +x scripts/generate-platform-targets.sh
-          PLATFORM_MATRIX_JSON=$(./scripts/generate-platform-targets.sh json)
-          echo "matrix=$PLATFORM_MATRIX_JSON" >> $GITHUB_OUTPUT
+          {
+            echo "matrix<<EOF"
+            ./scripts/generate-platform-targets.sh json
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
 
   # Build and test platform images
   build-platform-images:
