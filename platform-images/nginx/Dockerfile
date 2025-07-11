@@ -1,6 +1,6 @@
 # Nginx Platform Image
-ARG BASE_IMAGE
-FROM ${BASE_IMAGE}
+ARG GHCR_NAMESPACE
+FROM ghcr.io/${GHCR_NAMESPACE}/alpine-base:3.20
 
 # Set build arguments
 ARG BUILD_DATE
@@ -15,7 +15,7 @@ LABEL maintainer="Golden Image Build System" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.vendor="Golden Image Build System" \
       org.opencontainers.image.title="Nginx Platform" \
-      org.opencontainers.image.description="Nginx platform image based on hardened Debian" \
+      org.opencontainers.image.description="Nginx platform image based on Alpine" \
       org.opencontainers.image.source="https://github.com/your-org/golden-image" \
       org.opencontainers.image.licenses="MIT"
 
@@ -23,16 +23,15 @@ LABEL maintainer="Golden Image Build System" \
 USER root
 
 # Install Nginx
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
+RUN apk update && \
+    apk add --no-cache \
         nginx=${NGINX_VERSION}* \
         ca-certificates \
-        curl \
-    && rm -rf /var/lib/apt/lists/*
+        curl
 
 # Create nginx user
-RUN groupadd -g 101 nginx && \
-    useradd -r -u 101 -g nginx nginx
+RUN addgroup -g 101 nginx && \
+    adduser -D -u 101 -G nginx nginx
 
 # Configure Nginx
 RUN mkdir -p /var/log/nginx /var/cache/nginx /var/run && \

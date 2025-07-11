@@ -1,6 +1,6 @@
 # Python Platform Image
-ARG BASE_IMAGE
-FROM ${BASE_IMAGE}
+ARG GHCR_NAMESPACE
+FROM ghcr.io/${GHCR_NAMESPACE}/alpine-base:3.20
 
 # Set build arguments
 ARG BUILD_DATE
@@ -15,7 +15,7 @@ LABEL maintainer="Golden Image Build System" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.vendor="Golden Image Build System" \
       org.opencontainers.image.title="Python Platform" \
-      org.opencontainers.image.description="Python platform image based on hardened Debian" \
+      org.opencontainers.image.description="Python platform image based on Alpine" \
       org.opencontainers.image.source="https://github.com/your-org/golden-image" \
       org.opencontainers.image.licenses="MIT"
 
@@ -23,21 +23,20 @@ LABEL maintainer="Golden Image Build System" \
 USER root
 
 # Install Python and essential packages
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
+RUN apk update && \
+    apk add --no-cache \
         python${PYTHON_VERSION} \
         python${PYTHON_VERSION}-dev \
-        python3-pip \
-        python3-setuptools \
-        python3-wheel \
+        py3-pip \
+        py3-setuptools \
+        py3-wheel \
         ca-certificates \
         curl \
-        build-essential \
-    && rm -rf /var/lib/apt/lists/*
+        build-base
 
 # Create python user
-RUN groupadd -g 102 python && \
-    useradd -r -u 102 -g python python
+RUN addgroup -g 102 python && \
+    adduser -D -u 102 -G python python
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
