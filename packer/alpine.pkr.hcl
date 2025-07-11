@@ -25,6 +25,8 @@ build {
     script = "../scripts/harden-alpine.sh"
   }
   provisioner "shell" {
-    inline = ["echo 'Security scan placeholder (OpenSCAP, Lynis, etc.)'"]
+    inline = [
+      "echo 'OpenSCAP is not officially supported on Alpine. Skipping scan.'"
+    ]
   }
 } 
