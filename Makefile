@@ -43,10 +43,12 @@ help:
 	@echo "  help               - Show this help"
 	@echo ""
 	@echo "LTS Version Management:"
-	@echo "  show-lts-versions           - Show current LTS version configuration"
-	@echo "  validate-lts-config         - Validate LTS version configuration"
+	@echo "  show-lts-versions           - Show current OS LTS version configuration"
+	@echo "  show-platform-versions      - Show current platform LTS version configuration"
+	@echo "  validate-lts-config         - Validate OS LTS version configuration"
+	@echo "  validate-platform-config    - Validate platform LTS version configuration"
 	@echo ""
-	@echo "LTS Version Targets:"
+	@echo "OS LTS Version Targets:"
 	@echo "  build-alpine-<version>      - Build specific Alpine LTS version"
 	@echo "  build-debian-<version>      - Build specific Debian LTS version"
 	@echo "  build-redhat-<version>      - Build specific RedHat LTS version"
@@ -54,7 +56,14 @@ help:
 	@echo "  push-debian-<version>       - Push specific Debian LTS version"
 	@echo "  push-redhat-<version>       - Push specific RedHat LTS version"
 	@echo ""
-	@echo "To add/remove LTS versions, edit configs/lts-versions.env"
+	@echo "Platform LTS Version Targets:"
+	@echo "  build-<platform>-<version>-<os>-<os_version> - Build specific platform version on specific OS"
+	@echo "  push-<platform>-<version>-<os>-<os_version>  - Push specific platform version on specific OS"
+	@echo "  build-all-platforms         - Build all platform versions on all OS versions"
+	@echo "  push-all-platforms          - Push all platform versions on all OS versions"
+	@echo ""
+	@echo "To add/remove OS LTS versions, edit configs/lts-versions.env"
+	@echo "To add/remove platform LTS versions, edit configs/platform-lts-versions.env"
 
 # Build base images
 .PHONY: build-base-images
@@ -122,37 +131,44 @@ show-lts-versions:
 	@echo "  Debian default: $(DEFAULT_DEBIAN_VERSION)"
 	@echo "  RedHat default: $(DEFAULT_REDHAT_VERSION)"
 
-# Build platform images
+.PHONY: show-platform-versions
+show-platform-versions:
+	@echo "📋 Current platform LTS version configuration:"
+	@echo "  Nginx versions: $(NGINX_VERSIONS)"
+	@echo "  OpenJDK versions: $(OPENJDK_VERSIONS)"
+	@echo "  Tomcat versions: $(TOMCAT_VERSIONS)"
+	@echo "  Python versions: $(PYTHON_VERSIONS)"
+	@echo "  Spring Boot versions: $(SPRINGBOOT_VERSIONS)"
+	@echo "  ASP.NET versions: $(ASPNET_VERSIONS)"
+	@echo "  .NET Runtime versions: $(DOTNET_VERSIONS)"
+	@echo ""
+	@echo "Default versions:"
+	@echo "  Nginx default: $(DEFAULT_NGINX_VERSION)"
+	@echo "  OpenJDK default: $(DEFAULT_OPENJDK_VERSION)"
+	@echo "  Tomcat default: $(DEFAULT_TOMCAT_VERSION)"
+	@echo "  Python default: $(DEFAULT_PYTHON_VERSION)"
+	@echo "  Spring Boot default: $(DEFAULT_SPRINGBOOT_VERSION)"
+	@echo "  ASP.NET default: $(DEFAULT_ASPNET_VERSION)"
+	@echo "  .NET Runtime default: $(DEFAULT_DOTNET_VERSION)"
+
+.PHONY: validate-platform-config
+validate-platform-config:
+	@echo "🔍 Validating platform LTS version configuration..."
+	@if [ -z "$(NGINX_VERSIONS)" ]; then echo "❌ Missing NGINX_VERSIONS configuration"; exit 1; fi
+	@if [ -z "$(OPENJDK_VERSIONS)" ]; then echo "❌ Missing OPENJDK_VERSIONS configuration"; exit 1; fi
+	@if [ -z "$(TOMCAT_VERSIONS)" ]; then echo "❌ Missing TOMCAT_VERSIONS configuration"; exit 1; fi
+	@if [ -z "$(PYTHON_VERSIONS)" ]; then echo "❌ Missing PYTHON_VERSIONS configuration"; exit 1; fi
+	@if [ -z "$(SPRINGBOOT_VERSIONS)" ]; then echo "❌ Missing SPRINGBOOT_VERSIONS configuration"; exit 1; fi
+	@if [ -z "$(ASPNET_VERSIONS)" ]; then echo "❌ Missing ASPNET_VERSIONS configuration"; exit 1; fi
+	@if [ -z "$(DOTNET_VERSIONS)" ]; then echo "❌ Missing DOTNET_VERSIONS configuration"; exit 1; fi
+	@echo "✅ Platform LTS version configuration is valid"
+
+# Build platform images (all LTS versions)
 .PHONY: build-platform-images
-build-platform-images: $(addprefix build-platform-,$(PLATFORM_IMAGES))
+build-platform-images: build-all-platforms
 
-build-platform-nginx:
-	@echo "🔨 Building Nginx platform image..."
-	docker build $(BUILD_ARGS) -t $(REGISTRY)/nginx-platform:$(PLATFORM_IMAGE_TAG) platform-images/nginx/
-
-build-platform-openjdk:
-	@echo "🔨 Building OpenJDK platform image..."
-	docker build $(BUILD_ARGS) -t $(REGISTRY)/openjdk-platform:$(PLATFORM_IMAGE_TAG) platform-images/openjdk/
-
-build-platform-tomcat:
-	@echo "🔨 Building Tomcat platform image..."
-	docker build $(BUILD_ARGS) -t $(REGISTRY)/tomcat-platform:$(PLATFORM_IMAGE_TAG) platform-images/tomcat/
-
-build-platform-python:
-	@echo "🔨 Building Python platform image..."
-	docker build $(BUILD_ARGS) -t $(REGISTRY)/python-platform:$(PLATFORM_IMAGE_TAG) platform-images/python/
-
-build-platform-springboot:
-	@echo "🔨 Building Spring Boot platform image..."
-	docker build $(BUILD_ARGS) -t $(REGISTRY)/springboot-platform:$(PLATFORM_IMAGE_TAG) platform-images/springboot/
-
-build-platform-aspnet:
-	@echo "🔨 Building ASP.NET Core platform image..."
-	docker build $(BUILD_ARGS) -t $(REGISTRY)/aspnet-platform:$(PLATFORM_IMAGE_TAG) platform-images/aspnet/
-
-build-platform-dotnet:
-	@echo "🔨 Building .NET Runtime platform image..."
-	docker build $(BUILD_ARGS) -t $(REGISTRY)/dotnet-platform:$(PLATFORM_IMAGE_TAG) platform-images/dotnet/
+# Platform build targets are dynamically generated based on platform LTS versions in platform-lts-versions.env
+# To add/remove platform versions, edit configs/platform-lts-versions.env and run: make validate-platform-config
 
 # Build all images
 .PHONY: build-all
@@ -207,37 +223,12 @@ push-base-alpine: push-alpine-$(DEFAULT_ALPINE_VERSION)
 push-base-debian: push-debian-$(DEFAULT_DEBIAN_VERSION)
 push-base-redhat: push-redhat-$(DEFAULT_REDHAT_VERSION)
 
-# Push platform images to GHCR
+# Push platform images to GHCR (all LTS versions)
 .PHONY: push-platform-images
-push-platform-images: $(addprefix push-platform-,$(PLATFORM_IMAGES))
+push-platform-images: push-all-platforms
 
-push-platform-nginx:
-	@echo "📤 Pushing Nginx platform image to GHCR..."
-	docker push $(REGISTRY)/nginx-platform:$(PLATFORM_IMAGE_TAG)
-
-push-platform-openjdk:
-	@echo "📤 Pushing OpenJDK platform image to GHCR..."
-	docker push $(REGISTRY)/openjdk-platform:$(PLATFORM_IMAGE_TAG)
-
-push-platform-tomcat:
-	@echo "📤 Pushing Tomcat platform image to GHCR..."
-	docker push $(REGISTRY)/tomcat-platform:$(PLATFORM_IMAGE_TAG)
-
-push-platform-python:
-	@echo "📤 Pushing Python platform image to GHCR..."
-	docker push $(REGISTRY)/python-platform:$(PLATFORM_IMAGE_TAG)
-
-push-platform-springboot:
-	@echo "📤 Pushing Spring Boot platform image to GHCR..."
-	docker push $(REGISTRY)/springboot-platform:$(PLATFORM_IMAGE_TAG)
-
-push-platform-aspnet:
-	@echo "📤 Pushing ASP.NET Core platform image to GHCR..."
-	docker push $(REGISTRY)/aspnet-platform:$(PLATFORM_IMAGE_TAG)
-
-push-platform-dotnet:
-	@echo "📤 Pushing .NET Runtime platform image to GHCR..."
-	docker push $(REGISTRY)/dotnet-platform:$(PLATFORM_IMAGE_TAG)
+# Platform push targets are dynamically generated based on platform LTS versions in platform-lts-versions.env
+# To add/remove platform versions, edit configs/platform-lts-versions.env and run: make validate-platform-config
 
 # Push all images to GHCR
 .PHONY: push-all

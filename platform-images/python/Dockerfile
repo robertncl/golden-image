@@ -1,10 +1,12 @@
 # Python Platform Image
-FROM ${GHCR_REGISTRY}/${GHCR_NAMESPACE}/debian-hardened:latest
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
 
 # Set build arguments
 ARG BUILD_DATE
 ARG VCS_REF
-ARG VERSION=3.11
+ARG VERSION
+ARG PYTHON_VERSION=3.12
 
 # Set labels
 LABEL maintainer="Golden Image Build System" \

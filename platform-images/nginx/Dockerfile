@@ -1,10 +1,12 @@
 # Nginx Platform Image
-FROM ${GHCR_REGISTRY}/${GHCR_NAMESPACE}/debian-hardened:latest
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
 
 # Set build arguments
 ARG BUILD_DATE
 ARG VCS_REF
-ARG VERSION=1.24
+ARG VERSION
+ARG NGINX_VERSION=1.25
 
 # Set labels
 LABEL maintainer="Golden Image Build System" \
@@ -23,7 +25,7 @@ USER root
 # Install Nginx
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        nginx \
+        nginx=${NGINX_VERSION}* \
         ca-certificates \
         curl \
     && rm -rf /var/lib/apt/lists/*
