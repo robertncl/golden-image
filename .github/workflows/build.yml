@@ -21,7 +21,13 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: [alpine, debian, redhat]
+        include:
+          - os: alpine
+            versions: [3.18, 3.19, 3.20]
+          - os: debian
+            versions: [11, 12]
+          - os: redhat
+            versions: [8, 9]
     
     steps:
     - name: Checkout code
@@ -37,12 +43,13 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build base image
+    - name: Build base images for all LTS versions
       uses: docker/build-push-action@v5
       with:
         context: ./base-images/${{ matrix.os }}
+        file: ./base-images/${{ matrix.os }}/Dockerfile.${{ matrix.versions }}
         push: true
-        tags: ${{ env.REGISTRY }}/${{ matrix.os }}-hardened:${{ env.IMAGE_TAG }}
+        tags: ${{ env.REGISTRY }}/${{ matrix.os }}-hardened:${{ matrix.versions }}
         build-args: |
           BUILD_DATE=${{ github.event.head_commit.timestamp }}
           VCS_REF=${{ github.sha }}
@@ -50,7 +57,7 @@ jobs:
 
     - name: Test base image
       run: |
-        docker run --rm ${{ env.REGISTRY }}/${{ matrix.os }}-hardened:${{ env.IMAGE_TAG }} echo "Base image test successful"
+        docker run --rm ${{ env.REGISTRY }}/${{ matrix.os }}-hardened:${{ matrix.versions }} echo "Base image test successful"
 
   # Build and test platform images
   build-platform-images:

@@ -32,15 +32,23 @@ help:
 	@echo "========================="
 	@echo ""
 	@echo "Available targets:"
-	@echo "  build-base-images    - Build all base OS images"
+	@echo "  build-base-images    - Build all base OS images (all LTS versions)"
 	@echo "  build-platform-images - Build all platform images"
 	@echo "  build-all           - Build all images"
-	@echo "  push-base-images    - Push base images to ACR"
-	@echo "  push-platform-images - Push platform images to ACR"
-	@echo "  push-all           - Push all images to ACR"
+	@echo "  push-base-images    - Push base images to GHCR (all LTS versions)"
+	@echo "  push-platform-images - Push platform images to GHCR"
+	@echo "  push-all           - Push all images to GHCR"
 	@echo "  scan-images        - Scan images for vulnerabilities"
 	@echo "  clean              - Clean build artifacts"
 	@echo "  help               - Show this help"
+	@echo ""
+	@echo "LTS Version Targets:"
+	@echo "  build-alpine-3.18/3.19/3.20 - Build specific Alpine LTS version"
+	@echo "  build-debian-11/12          - Build specific Debian LTS version"
+	@echo "  build-redhat-8/9            - Build specific RedHat LTS version"
+	@echo "  push-alpine-3.18/3.19/3.20  - Push specific Alpine LTS version"
+	@echo "  push-debian-11/12           - Push specific Debian LTS version"
+	@echo "  push-redhat-8/9             - Push specific RedHat LTS version"
 
 # Build base images
 .PHONY: build-base-images
@@ -129,19 +137,52 @@ build-all: build-base-images build-platform-images
 
 # Push base images to GHCR
 .PHONY: push-base-images
-push-base-images: $(addprefix push-base-,$(BASE_IMAGES))
+push-base-images: push-all-alpine-versions push-all-debian-versions push-all-redhat-versions
 
-push-base-alpine:
-	@echo "📤 Pushing Alpine base image to GHCR..."
-	docker push $(REGISTRY)/alpine-hardened:$(BASE_IMAGE_TAG)
+# Push all Alpine LTS versions
+.PHONY: push-all-alpine-versions
+push-all-alpine-versions: $(addprefix push-alpine-,$(ALPINE_VERSIONS))
 
-push-base-debian:
-	@echo "📤 Pushing Debian base image to GHCR..."
-	docker push $(REGISTRY)/debian-hardened:$(BASE_IMAGE_TAG)
+push-alpine-3.18:
+	@echo "📤 Pushing Alpine 3.18 LTS base image to GHCR..."
+	docker push $(REGISTRY)/alpine-hardened:3.18
 
-push-base-redhat:
-	@echo "📤 Pushing RedHat base image to GHCR..."
-	docker push $(REGISTRY)/redhat-hardened:$(BASE_IMAGE_TAG)
+push-alpine-3.19:
+	@echo "📤 Pushing Alpine 3.19 LTS base image to GHCR..."
+	docker push $(REGISTRY)/alpine-hardened:3.19
+
+push-alpine-3.20:
+	@echo "📤 Pushing Alpine 3.20 LTS base image to GHCR..."
+	docker push $(REGISTRY)/alpine-hardened:3.20
+
+# Push all Debian LTS versions
+.PHONY: push-all-debian-versions
+push-all-debian-versions: $(addprefix push-debian-,$(DEBIAN_VERSIONS))
+
+push-debian-11:
+	@echo "📤 Pushing Debian 11 (Bullseye) LTS base image to GHCR..."
+	docker push $(REGISTRY)/debian-hardened:11
+
+push-debian-12:
+	@echo "📤 Pushing Debian 12 (Bookworm) LTS base image to GHCR..."
+	docker push $(REGISTRY)/debian-hardened:12
+
+# Push all RedHat LTS versions
+.PHONY: push-all-redhat-versions
+push-all-redhat-versions: $(addprefix push-redhat-,$(REDHAT_VERSIONS))
+
+push-redhat-8:
+	@echo "📤 Pushing RedHat UBI 8 LTS base image to GHCR..."
+	docker push $(REGISTRY)/redhat-hardened:8
+
+push-redhat-9:
+	@echo "📤 Pushing RedHat UBI 9 LTS base image to GHCR..."
+	docker push $(REGISTRY)/redhat-hardened:9
+
+# Legacy targets for backward compatibility
+push-base-alpine: push-alpine-3.20
+push-base-debian: push-debian-12
+push-base-redhat: push-redhat-9
 
 # Push platform images to GHCR
 .PHONY: push-platform-images
@@ -200,13 +241,17 @@ sync-image-to-acr:
 scan-images:
 	@echo "🔍 Scanning images for vulnerabilities..."
 	@if command -v trivy >/dev/null 2>&1; then \
-		for image in $(ACR_LOGIN_SERVER)/alpine-hardened:$(BASE_IMAGE_TAG) \
-			$(ACR_LOGIN_SERVER)/debian-hardened:$(BASE_IMAGE_TAG) \
-			$(ACR_LOGIN_SERVER)/redhat-hardened:$(BASE_IMAGE_TAG) \
-			$(ACR_LOGIN_SERVER)/nginx-platform:$(PLATFORM_IMAGE_TAG) \
-			$(ACR_LOGIN_SERVER)/openjdk-platform:$(PLATFORM_IMAGE_TAG) \
-			$(ACR_LOGIN_SERVER)/python-platform:$(PLATFORM_IMAGE_TAG) \
-			$(ACR_LOGIN_SERVER)/dotnet-platform:$(PLATFORM_IMAGE_TAG); do \
+		for image in $(REGISTRY)/alpine-hardened:3.18 \
+			$(REGISTRY)/alpine-hardened:3.19 \
+			$(REGISTRY)/alpine-hardened:3.20 \
+			$(REGISTRY)/debian-hardened:11 \
+			$(REGISTRY)/debian-hardened:12 \
+			$(REGISTRY)/redhat-hardened:8 \
+			$(REGISTRY)/redhat-hardened:9 \
+			$(REGISTRY)/nginx-platform:$(PLATFORM_IMAGE_TAG) \
+			$(REGISTRY)/openjdk-platform:$(PLATFORM_IMAGE_TAG) \
+			$(REGISTRY)/python-platform:$(PLATFORM_IMAGE_TAG) \
+			$(REGISTRY)/dotnet-platform:$(PLATFORM_IMAGE_TAG); do \
 			echo "Scanning $$image..."; \
 			trivy image --severity HIGH,CRITICAL $$image; \
 		done; \
