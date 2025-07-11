@@ -23,11 +23,19 @@ jobs:
       matrix:
         include:
           - os: alpine
-            versions: [3.18, 3.19, 3.20]
+            version: 3.18
+          - os: alpine
+            version: 3.19
+          - os: alpine
+            version: 3.20
           - os: debian
-            versions: [11, 12]
+            version: 11
+          - os: debian
+            version: 12
           - os: redhat
-            versions: [8, 9]
+            version: 8
+          - os: redhat
+            version: 9
     
     steps:
     - name: Checkout code
@@ -43,13 +51,13 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build base images for all LTS versions
+    - name: Build base image for LTS version
       uses: docker/build-push-action@v5
       with:
         context: ./base-images/${{ matrix.os }}
-        file: ./base-images/${{ matrix.os }}/Dockerfile.${{ matrix.versions }}
+        file: ./base-images/${{ matrix.os }}/Dockerfile.${{ matrix.version }}
         push: true
-        tags: ${{ env.REGISTRY }}/${{ matrix.os }}-hardened:${{ matrix.versions }}
+        tags: ${{ env.REGISTRY }}/${{ matrix.os }}-hardened:${{ matrix.version }}
         build-args: |
           BUILD_DATE=${{ github.event.head_commit.timestamp }}
           VCS_REF=${{ github.sha }}
@@ -57,7 +65,7 @@ jobs:
 
     - name: Test base image
       run: |
-        docker run --rm ${{ env.REGISTRY }}/${{ matrix.os }}-hardened:${{ matrix.versions }} echo "Base image test successful"
+        docker run --rm ${{ env.REGISTRY }}/${{ matrix.os }}-hardened:${{ matrix.version }} echo "Base image test successful"
 
   # Build and test platform images
   build-platform-images:
@@ -107,17 +115,32 @@ jobs:
 
     - name: Install Trivy
       uses: aquasecurity/trivy-action@master
-      with:
-        scan-type: 'image'
-        scan-ref: '${{ env.REGISTRY }}/debian-hardened:${{ env.IMAGE_TAG }}'
-        format: 'sarif'
-        output: 'trivy-results.sarif'
+
+    - name: Scan all LTS base images
+      run: |
+        # Scan Alpine LTS versions
+        for version in 3.18 3.19 3.20; do
+          echo "Scanning Alpine $version..."
+          trivy image --severity HIGH,CRITICAL --format sarif --output trivy-alpine-$version.sarif ${{ env.REGISTRY }}/alpine-hardened:$version
+        done
+        
+        # Scan Debian LTS versions
+        for version in 11 12; do
+          echo "Scanning Debian $version..."
+          trivy image --severity HIGH,CRITICAL --format sarif --output trivy-debian-$version.sarif ${{ env.REGISTRY }}/debian-hardened:$version
+        done
+        
+        # Scan RedHat LTS versions
+        for version in 8 9; do
+          echo "Scanning RedHat $version..."
+          trivy image --severity HIGH,CRITICAL --format sarif --output trivy-redhat-$version.sarif ${{ env.REGISTRY }}/redhat-hardened:$version
+        done
 
     - name: Upload Trivy scan results to GitHub Security tab
       uses: github/codeql-action/upload-sarif@v3
       if: always()
       with:
-        sarif_file: 'trivy-results.sarif'
+        sarif_file: 'trivy-*.sarif'
 
   # Prisma Cloud security scanning
   prisma-scan:

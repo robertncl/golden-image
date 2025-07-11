@@ -102,11 +102,15 @@ sync_all_images() {
     local success_count=0
     local total_count=0
     
-    # Base images to sync
+    # Base images to sync (all LTS versions)
     base_images=(
-        "alpine-hardened:${BASE_IMAGE_TAG}"
-        "debian-hardened:${BASE_IMAGE_TAG}"
-        "redhat-hardened:${BASE_IMAGE_TAG}"
+        "alpine-hardened:3.18"
+        "alpine-hardened:3.19"
+        "alpine-hardened:3.20"
+        "debian-hardened:11"
+        "debian-hardened:12"
+        "redhat-hardened:8"
+        "redhat-hardened:9"
     )
     
     # Platform images to sync
@@ -177,23 +181,37 @@ sync_specific_image() {
 show_sync_status() {
     echo -e "${BLUE}📊 Checking sync status...${NC}"
     
-    # Check base images
+    # Check base images (all LTS versions)
     echo "Base Images:"
     for base in alpine debian redhat; do
-        local ghcr_image="${GHCR_REGISTRY}/${GHCR_NAMESPACE}/${base}-hardened:${BASE_IMAGE_TAG}"
-        local acr_image="${ACR_LOGIN_SERVER}/${base}-hardened:${BASE_IMAGE_TAG}"
+        case $base in
+            alpine)
+                versions=(3.18 3.19 3.20)
+                ;;
+            debian)
+                versions=(11 12)
+                ;;
+            redhat)
+                versions=(8 9)
+                ;;
+        esac
         
-        if docker manifest inspect "$ghcr_image" >/dev/null 2>&1; then
-            echo -e "  ${GREEN}✅ ${base}-hardened (GHCR)${NC}"
-        else
-            echo -e "  ${RED}❌ ${base}-hardened (GHCR)${NC}"
-        fi
-        
-        if docker manifest inspect "$acr_image" >/dev/null 2>&1; then
-            echo -e "  ${GREEN}✅ ${base}-hardened (ACR)${NC}"
-        else
-            echo -e "  ${RED}❌ ${base}-hardened (ACR)${NC}"
-        fi
+        for version in "${versions[@]}"; do
+            local ghcr_image="${GHCR_REGISTRY}/${GHCR_NAMESPACE}/${base}-hardened:${version}"
+            local acr_image="${ACR_LOGIN_SERVER}/${base}-hardened:${version}"
+            
+            if docker manifest inspect "$ghcr_image" >/dev/null 2>&1; then
+                echo -e "  ${GREEN}✅ ${base}-hardened:${version} (GHCR)${NC}"
+            else
+                echo -e "  ${RED}❌ ${base}-hardened:${version} (GHCR)${NC}"
+            fi
+            
+            if docker manifest inspect "$acr_image" >/dev/null 2>&1; then
+                echo -e "  ${GREEN}✅ ${base}-hardened:${version} (ACR)${NC}"
+            else
+                echo -e "  ${RED}❌ ${base}-hardened:${version} (ACR)${NC}"
+            fi
+        done
     done
     
     # Check platform images
