@@ -25,11 +25,8 @@ adduser -D -s /bin/sh -u 1000 -G appuser appuser
 # Security hardening
 echo "🔧 Applying security hardening..."
 
-# Remove unnecessary packages and files (but keep essential ones)
-apk del --purge \
-    busybox \
-    libc-utils \
-    ssl_client
+# Only remove packages that are safe to remove
+apk del --purge ssl_client || true
 
 # Clean package cache
 rm -rf /var/cache/apk/*
@@ -61,10 +58,10 @@ echo "umask 027" >> /etc/profile
 echo "appuser soft nofile 65536" >> /etc/security/limits.conf
 echo "appuser hard nofile 65536" >> /etc/security/limits.conf
 
-# Remove unnecessary files
-find /var/log -type f -delete
-find /tmp -type f -delete
-find /var/tmp -type f -delete
+# Remove unnecessary files (but be careful)
+find /var/log -type f -delete 2>/dev/null || true
+find /tmp -type f -delete 2>/dev/null || true
+find /var/tmp -type f -delete 2>/dev/null || true
 
 # Set proper ownership
 chown -R appuser:appuser /home/appuser

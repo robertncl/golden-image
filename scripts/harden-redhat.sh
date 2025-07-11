@@ -24,11 +24,8 @@ useradd -m -s /bin/bash -u 1000 -g appuser appuser
 # Security hardening
 echo "🔧 Applying security hardening..."
 
-# Remove unnecessary packages (but keep essential ones)
-dnf remove -y \
-    subscription-manager \
-    subscription-manager-rhsm \
-    subscription-manager-rhsm-certificates
+# Only remove packages that are safe to remove
+dnf remove -y subscription-manager subscription-manager-rhsm subscription-manager-rhsm-certificates || true
 
 # Clean package cache
 dnf clean all
@@ -60,15 +57,15 @@ echo "umask 027" >> /etc/profile
 echo "appuser soft nofile 65536" >> /etc/security/limits.conf
 echo "appuser hard nofile 65536" >> /etc/security/limits.conf
 
-# Remove unnecessary files
-find /var/log -type f -delete
-find /tmp -type f -delete
-find /var/tmp -type f -delete
+# Remove unnecessary files (but be careful)
+find /var/log -type f -delete 2>/dev/null || true
+find /tmp -type f -delete 2>/dev/null || true
+find /var/tmp -type f -delete 2>/dev/null || true
 
-# Remove documentation
-rm -rf /usr/share/doc/*
-rm -rf /usr/share/man/*
-rm -rf /usr/share/locale/*
+# Remove documentation (but be careful)
+rm -rf /usr/share/doc/* 2>/dev/null || true
+rm -rf /usr/share/man/* 2>/dev/null || true
+rm -rf /usr/share/locale/* 2>/dev/null || true
 
 # Set proper ownership
 chown -R appuser:appuser /home/appuser

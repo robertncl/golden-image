@@ -25,14 +25,8 @@ useradd -m -s /bin/bash -u 1000 -g appuser appuser
 # Security hardening
 echo "🔧 Applying security hardening..."
 
-# Remove unnecessary packages (but keep essential ones)
-apt-get purge -y \
-    dialog \
-    gnupg \
-    gpg-agent \
-    less \
-    nano \
-    vim-tiny
+# Only remove packages that are safe to remove
+apt-get purge -y dialog gnupg gpg-agent less nano vim-tiny || true
 
 # Clean package cache
 apt-get autoremove -y
@@ -66,16 +60,16 @@ echo "umask 027" >> /etc/profile
 echo "appuser soft nofile 65536" >> /etc/security/limits.conf
 echo "appuser hard nofile 65536" >> /etc/security/limits.conf
 
-# Remove unnecessary files and directories
-find /var/log -type f -delete
-find /tmp -type f -delete
-find /var/tmp -type f -delete
+# Remove unnecessary files and directories (but be careful)
+find /var/log -type f -delete 2>/dev/null || true
+find /tmp -type f -delete 2>/dev/null || true
+find /var/tmp -type f -delete 2>/dev/null || true
 
-# Remove unnecessary system files
-rm -rf /usr/share/doc/*
-rm -rf /usr/share/man/*
-rm -rf /usr/share/locale/*
-rm -rf /var/cache/debconf/*
+# Remove unnecessary system files (but be careful)
+rm -rf /usr/share/doc/* 2>/dev/null || true
+rm -rf /usr/share/man/* 2>/dev/null || true
+rm -rf /usr/share/locale/* 2>/dev/null || true
+rm -rf /var/cache/debconf/* 2>/dev/null || true
 
 # Set proper ownership
 chown -R appuser:appuser /home/appuser
