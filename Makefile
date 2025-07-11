@@ -3,6 +3,7 @@
 # Load configuration
 -include configs/ghcr-config.env
 -include configs/acr-config.env
+-include configs/lts-versions.env
 
 # Variables
 BUILD_DATE := $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
@@ -17,10 +18,8 @@ ACR_REGISTRY := $(ACR_LOGIN_SERVER)
 BASE_IMAGES := alpine debian redhat
 PLATFORM_IMAGES := nginx openjdk tomcat python springboot aspnet dotnet
 
-# LTS versions for each OS
-ALPINE_VERSIONS := 3.18 3.19 3.20
-DEBIAN_VERSIONS := 11 12
-REDHAT_VERSIONS := 8 9
+# LTS versions for each OS (loaded from configs/lts-versions.env)
+# ALPINE_VERSIONS, DEBIAN_VERSIONS, REDHAT_VERSIONS are defined in lts-versions.env
 
 # Docker build arguments
 BUILD_ARGS := --build-arg BUILD_DATE=$(BUILD_DATE) --build-arg VCS_REF=$(VCS_REF) --build-arg VERSION=$(VERSION)
@@ -95,9 +94,9 @@ build-redhat-9:
 	docker build $(BUILD_ARGS) -f base-images/redhat/Dockerfile.9 -t $(REGISTRY)/redhat-hardened:9 base-images/redhat/
 
 # Legacy targets for backward compatibility
-build-base-alpine: build-alpine-3.20
-build-base-debian: build-debian-12
-build-base-redhat: build-redhat-9
+build-base-alpine: build-alpine-$(DEFAULT_ALPINE_VERSION)
+build-base-debian: build-debian-$(DEFAULT_DEBIAN_VERSION)
+build-base-redhat: build-redhat-$(DEFAULT_REDHAT_VERSION)
 
 # Build platform images
 .PHONY: build-platform-images
@@ -180,9 +179,9 @@ push-redhat-9:
 	docker push $(REGISTRY)/redhat-hardened:9
 
 # Legacy targets for backward compatibility
-push-base-alpine: push-alpine-3.20
-push-base-debian: push-debian-12
-push-base-redhat: push-redhat-9
+push-base-alpine: push-alpine-$(DEFAULT_ALPINE_VERSION)
+push-base-debian: push-debian-$(DEFAULT_DEBIAN_VERSION)
+push-base-redhat: push-redhat-$(DEFAULT_REDHAT_VERSION)
 
 # Push platform images to GHCR
 .PHONY: push-platform-images
