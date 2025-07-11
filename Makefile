@@ -1,12 +1,17 @@
 # Golden Image Build System Makefile
 
 # Load configuration
+-include configs/ghcr-config.env
 -include configs/acr-config.env
 
 # Variables
 BUILD_DATE := $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
 VCS_REF := $(shell git rev-parse --short HEAD)
 VERSION := 1.0.0
+
+# Registry configuration
+REGISTRY := $(GHCR_REGISTRY)/$(GHCR_NAMESPACE)
+ACR_REGISTRY := $(ACR_LOGIN_SERVER)
 
 # Base images
 BASE_IMAGES := alpine debian redhat
@@ -38,15 +43,15 @@ build-base-images: $(addprefix build-base-,$(BASE_IMAGES))
 
 build-base-alpine:
 	@echo "🔨 Building Alpine base image..."
-	docker build $(BUILD_ARGS) -t $(ACR_LOGIN_SERVER)/alpine-hardened:$(BASE_IMAGE_TAG) base-images/alpine/
+	docker build $(BUILD_ARGS) -t $(REGISTRY)/alpine-hardened:$(BASE_IMAGE_TAG) base-images/alpine/
 
 build-base-debian:
 	@echo "🔨 Building Debian base image..."
-	docker build $(BUILD_ARGS) -t $(ACR_LOGIN_SERVER)/debian-hardened:$(BASE_IMAGE_TAG) base-images/debian/
+	docker build $(BUILD_ARGS) -t $(REGISTRY)/debian-hardened:$(BASE_IMAGE_TAG) base-images/debian/
 
 build-base-redhat:
 	@echo "🔨 Building RedHat base image..."
-	docker build $(BUILD_ARGS) -t $(ACR_LOGIN_SERVER)/redhat-hardened:$(BASE_IMAGE_TAG) base-images/redhat/
+	docker build $(BUILD_ARGS) -t $(REGISTRY)/redhat-hardened:$(BASE_IMAGE_TAG) base-images/redhat/
 
 # Build platform images
 .PHONY: build-platform-images
@@ -54,87 +59,103 @@ build-platform-images: $(addprefix build-platform-,$(PLATFORM_IMAGES))
 
 build-platform-nginx:
 	@echo "🔨 Building Nginx platform image..."
-	docker build $(BUILD_ARGS) -t $(ACR_LOGIN_SERVER)/nginx-platform:$(PLATFORM_IMAGE_TAG) platform-images/nginx/
+	docker build $(BUILD_ARGS) -t $(REGISTRY)/nginx-platform:$(PLATFORM_IMAGE_TAG) platform-images/nginx/
 
 build-platform-openjdk:
 	@echo "🔨 Building OpenJDK platform image..."
-	docker build $(BUILD_ARGS) -t $(ACR_LOGIN_SERVER)/openjdk-platform:$(PLATFORM_IMAGE_TAG) platform-images/openjdk/
+	docker build $(BUILD_ARGS) -t $(REGISTRY)/openjdk-platform:$(PLATFORM_IMAGE_TAG) platform-images/openjdk/
 
 build-platform-tomcat:
 	@echo "🔨 Building Tomcat platform image..."
-	docker build $(BUILD_ARGS) -t $(ACR_LOGIN_SERVER)/tomcat-platform:$(PLATFORM_IMAGE_TAG) platform-images/tomcat/
+	docker build $(BUILD_ARGS) -t $(REGISTRY)/tomcat-platform:$(PLATFORM_IMAGE_TAG) platform-images/tomcat/
 
 build-platform-python:
 	@echo "🔨 Building Python platform image..."
-	docker build $(BUILD_ARGS) -t $(ACR_LOGIN_SERVER)/python-platform:$(PLATFORM_IMAGE_TAG) platform-images/python/
+	docker build $(BUILD_ARGS) -t $(REGISTRY)/python-platform:$(PLATFORM_IMAGE_TAG) platform-images/python/
 
 build-platform-springboot:
 	@echo "🔨 Building Spring Boot platform image..."
-	docker build $(BUILD_ARGS) -t $(ACR_LOGIN_SERVER)/springboot-platform:$(PLATFORM_IMAGE_TAG) platform-images/springboot/
+	docker build $(BUILD_ARGS) -t $(REGISTRY)/springboot-platform:$(PLATFORM_IMAGE_TAG) platform-images/springboot/
 
 build-platform-aspnet:
 	@echo "🔨 Building ASP.NET Core platform image..."
-	docker build $(BUILD_ARGS) -t $(ACR_LOGIN_SERVER)/aspnet-platform:$(PLATFORM_IMAGE_TAG) platform-images/aspnet/
+	docker build $(BUILD_ARGS) -t $(REGISTRY)/aspnet-platform:$(PLATFORM_IMAGE_TAG) platform-images/aspnet/
 
 build-platform-dotnet:
 	@echo "🔨 Building .NET Runtime platform image..."
-	docker build $(BUILD_ARGS) -t $(ACR_LOGIN_SERVER)/dotnet-platform:$(PLATFORM_IMAGE_TAG) platform-images/dotnet/
+	docker build $(BUILD_ARGS) -t $(REGISTRY)/dotnet-platform:$(PLATFORM_IMAGE_TAG) platform-images/dotnet/
 
 # Build all images
 .PHONY: build-all
 build-all: build-base-images build-platform-images
 
-# Push base images to ACR
+# Push base images to GHCR
 .PHONY: push-base-images
 push-base-images: $(addprefix push-base-,$(BASE_IMAGES))
 
 push-base-alpine:
-	@echo "📤 Pushing Alpine base image to ACR..."
-	docker push $(ACR_LOGIN_SERVER)/alpine-hardened:$(BASE_IMAGE_TAG)
+	@echo "📤 Pushing Alpine base image to GHCR..."
+	docker push $(REGISTRY)/alpine-hardened:$(BASE_IMAGE_TAG)
 
 push-base-debian:
-	@echo "📤 Pushing Debian base image to ACR..."
-	docker push $(ACR_LOGIN_SERVER)/debian-hardened:$(BASE_IMAGE_TAG)
+	@echo "📤 Pushing Debian base image to GHCR..."
+	docker push $(REGISTRY)/debian-hardened:$(BASE_IMAGE_TAG)
 
 push-base-redhat:
-	@echo "📤 Pushing RedHat base image to ACR..."
-	docker push $(ACR_LOGIN_SERVER)/redhat-hardened:$(BASE_IMAGE_TAG)
+	@echo "📤 Pushing RedHat base image to GHCR..."
+	docker push $(REGISTRY)/redhat-hardened:$(BASE_IMAGE_TAG)
 
-# Push platform images to ACR
+# Push platform images to GHCR
 .PHONY: push-platform-images
 push-platform-images: $(addprefix push-platform-,$(PLATFORM_IMAGES))
 
 push-platform-nginx:
-	@echo "📤 Pushing Nginx platform image to ACR..."
-	docker push $(ACR_LOGIN_SERVER)/nginx-platform:$(PLATFORM_IMAGE_TAG)
+	@echo "📤 Pushing Nginx platform image to GHCR..."
+	docker push $(REGISTRY)/nginx-platform:$(PLATFORM_IMAGE_TAG)
 
 push-platform-openjdk:
-	@echo "📤 Pushing OpenJDK platform image to ACR..."
-	docker push $(ACR_LOGIN_SERVER)/openjdk-platform:$(PLATFORM_IMAGE_TAG)
+	@echo "📤 Pushing OpenJDK platform image to GHCR..."
+	docker push $(REGISTRY)/openjdk-platform:$(PLATFORM_IMAGE_TAG)
 
 push-platform-tomcat:
-	@echo "📤 Pushing Tomcat platform image to ACR..."
-	docker push $(ACR_LOGIN_SERVER)/tomcat-platform:$(PLATFORM_IMAGE_TAG)
+	@echo "📤 Pushing Tomcat platform image to GHCR..."
+	docker push $(REGISTRY)/tomcat-platform:$(PLATFORM_IMAGE_TAG)
 
 push-platform-python:
-	@echo "📤 Pushing Python platform image to ACR..."
-	docker push $(ACR_LOGIN_SERVER)/python-platform:$(PLATFORM_IMAGE_TAG)
+	@echo "📤 Pushing Python platform image to GHCR..."
+	docker push $(REGISTRY)/python-platform:$(PLATFORM_IMAGE_TAG)
 
 push-platform-springboot:
-	@echo "📤 Pushing Spring Boot platform image to ACR..."
-	docker push $(ACR_LOGIN_SERVER)/springboot-platform:$(PLATFORM_IMAGE_TAG)
+	@echo "📤 Pushing Spring Boot platform image to GHCR..."
+	docker push $(REGISTRY)/springboot-platform:$(PLATFORM_IMAGE_TAG)
 
 push-platform-aspnet:
-	@echo "📤 Pushing ASP.NET Core platform image to ACR..."
-	docker push $(ACR_LOGIN_SERVER)/aspnet-platform:$(PLATFORM_IMAGE_TAG)
+	@echo "📤 Pushing ASP.NET Core platform image to GHCR..."
+	docker push $(REGISTRY)/aspnet-platform:$(PLATFORM_IMAGE_TAG)
 
 push-platform-dotnet:
-	@echo "📤 Pushing .NET Runtime platform image to ACR..."
-	docker push $(ACR_LOGIN_SERVER)/dotnet-platform:$(PLATFORM_IMAGE_TAG)
+	@echo "📤 Pushing .NET Runtime platform image to GHCR..."
+	docker push $(REGISTRY)/dotnet-platform:$(PLATFORM_IMAGE_TAG)
 
-# Push all images
+# Push all images to GHCR
 .PHONY: push-all
 push-all: push-base-images push-platform-images
+
+# Sync images from GHCR to ACR
+.PHONY: sync-to-acr
+sync-to-acr:
+	@echo "🔄 Syncing images from GHCR to ACR..."
+	@./scripts/registry-sync.sh sync-all
+
+# Sync specific image to ACR
+.PHONY: sync-image-to-acr
+sync-image-to-acr:
+	@if [ -z "$(IMAGE_NAME)" ]; then \
+		echo "❌ Please specify IMAGE_NAME=<image-name>"; \
+		exit 1; \
+	fi
+	@echo "🔄 Syncing $(IMAGE_NAME) from GHCR to ACR..."
+	@./scripts/registry-sync.sh sync-image $(IMAGE_NAME) $(IMAGE_TAG)
 
 # Scan images for vulnerabilities
 .PHONY: scan-images
@@ -186,7 +207,16 @@ clean:
 	docker system prune -f
 	docker image prune -f
 
-# Login to ACR
+# Login to registries
+.PHONY: login-ghcr
+login-ghcr:
+	@echo "🔐 Logging into GitHub Container Registry..."
+	@if [ -n "$(GHCR_USERNAME)" ] && [ -n "$(GHCR_PASSWORD)" ]; then \
+		echo "$(GHCR_PASSWORD)" | docker login $(GHCR_REGISTRY) -u $(GHCR_USERNAME) --password-stdin; \
+	else \
+		echo "$(GITHUB_TOKEN)" | docker login $(GHCR_REGISTRY) -u $(GITHUB_ACTOR) --password-stdin; \
+	fi
+
 .PHONY: login-acr
 login-acr:
 	@echo "🔐 Logging into Azure Container Registry..."
@@ -194,5 +224,10 @@ login-acr:
 
 # Complete build and push workflow
 .PHONY: deploy
-deploy: login-acr build-all push-all scan-images
-	@echo "✅ Complete build and deployment completed successfully!" 
+deploy: login-ghcr build-all push-all scan-images
+	@echo "✅ Complete build and deployment to GHCR completed successfully!"
+
+# Complete workflow with ACR sync
+.PHONY: deploy-with-sync
+deploy-with-sync: deploy login-acr sync-to-acr
+	@echo "✅ Complete build, push to GHCR, and sync to ACR completed successfully!" 

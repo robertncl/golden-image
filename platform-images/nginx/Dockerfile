@@ -1,5 +1,5 @@
 # Nginx Platform Image
-FROM ${ACR_LOGIN_SERVER}/debian-hardened:latest
+FROM ${GHCR_REGISTRY}/${GHCR_NAMESPACE}/debian-hardened:latest
 
 # Set build arguments
 ARG BUILD_DATE
