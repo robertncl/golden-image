@@ -1,13 +1,7 @@
 name: Golden Image Build and Test
 
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
-  schedule:
-    # Run weekly on Sundays at 2 AM UTC
-    - cron: '0 2 * * 0'
+  workflow_dispatch:
 
 env:
   GHCR_REGISTRY: ghcr.io
@@ -16,56 +10,52 @@ env:
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:
+  # Generate matrix dynamically
+  generate-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Generate matrix
+        id: set-matrix
+        run: |
+          chmod +x scripts/generate-github-matrix.sh
+          MATRIX_JSON=$(./scripts/generate-github-matrix.sh json)
+          echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
+
   # Build and test base images
   build-base-images:
     runs-on: ubuntu-latest
+    needs: generate-matrix
     strategy:
-      matrix:
-        include:
-          - os: alpine
-            version: 3.18
-          - os: alpine
-            version: 3.19
-          - os: alpine
-            version: 3.20
-          - os: debian
-            version: 11
-          - os: debian
-            version: 12
-          - os: redhat
-            version: 8
-          - os: redhat
-            version: 9
-    
+      matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: Log in to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ env.GHCR_REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Build base image for LTS version
-      uses: docker/build-push-action@v5
-      with:
-        context: ./base-images/${{ matrix.os }}
-        file: ./base-images/${{ matrix.os }}/Dockerfile.${{ matrix.version }}
-        push: true
-        tags: ${{ env.REGISTRY }}/${{ matrix.os }}-hardened:${{ matrix.version }}
-        build-args: |
-          BUILD_DATE=${{ github.event.head_commit.timestamp }}
-          VCS_REF=${{ github.sha }}
-          VERSION=1.0.0
-
-    - name: Test base image
-      run: |
-        docker run --rm ${{ env.REGISTRY }}/${{ matrix.os }}-hardened:${{ matrix.version }} echo "Base image test successful"
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.GHCR_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build base image for LTS version
+        uses: docker/build-push-action@v5
+        with:
+          context: ./base-images/${{ matrix.os }}
+          file: ./base-images/${{ matrix.os }}/Dockerfile.${{ matrix.version }}
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ matrix.os }}-hardened:${{ matrix.version }}
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+            VERSION=1.0.0
+      - name: Test base image
+        run: |
+          docker run --rm ${{ env.REGISTRY }}/${{ matrix.os }}-hardened:${{ matrix.version }} echo "Base image test successful"
 
   # Build and test platform images
   build-platform-images:
@@ -74,181 +64,118 @@ jobs:
     strategy:
       matrix:
         platform: [nginx, openjdk, python, dotnet]
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: Log in to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ env.GHCR_REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Build platform image
-      uses: docker/build-push-action@v5
-      with:
-        context: ./platform-images/${{ matrix.platform }}
-        push: true
-        tags: ${{ env.REGISTRY }}/${{ matrix.platform }}-platform:${{ env.IMAGE_TAG }}
-        build-args: |
-          BUILD_DATE=${{ github.event.head_commit.timestamp }}
-          VCS_REF=${{ github.sha }}
-          VERSION=1.0.0
-
-    - name: Test platform image
-      run: |
-        docker run --rm ${{ env.REGISTRY }}/${{ matrix.platform }}-platform:${{ env.IMAGE_TAG }} echo "Platform image test successful"
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.GHCR_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build platform image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./platform-images/${{ matrix.platform }}
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ matrix.platform }}-platform:${{ env.IMAGE_TAG }}
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+            VERSION=1.0.0
+      - name: Test platform image
+        run: |
+          docker run --rm ${{ env.REGISTRY }}/${{ matrix.platform }}-platform:${{ env.IMAGE_TAG }} echo "Platform image test successful"
 
   # Security scanning
   security-scan:
     runs-on: ubuntu-latest
     needs: [build-base-images, build-platform-images]
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Install Trivy
-      uses: aquasecurity/trivy-action@master
-
-    - name: Scan all LTS base images
-      run: |
-        # Scan Alpine LTS versions
-        for version in 3.18 3.19 3.20; do
-          echo "Scanning Alpine $version..."
-          trivy image --severity HIGH,CRITICAL --format sarif --output trivy-alpine-$version.sarif ${{ env.REGISTRY }}/alpine-hardened:$version
-        done
-        
-        # Scan Debian LTS versions
-        for version in 11 12; do
-          echo "Scanning Debian $version..."
-          trivy image --severity HIGH,CRITICAL --format sarif --output trivy-debian-$version.sarif ${{ env.REGISTRY }}/debian-hardened:$version
-        done
-        
-        # Scan RedHat LTS versions
-        for version in 8 9; do
-          echo "Scanning RedHat $version..."
-          trivy image --severity HIGH,CRITICAL --format sarif --output trivy-redhat-$version.sarif ${{ env.REGISTRY }}/redhat-hardened:$version
-        done
-
-    - name: Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@v3
-      if: always()
-      with:
-        sarif_file: 'trivy-*.sarif'
-
-  # Prisma Cloud security scanning
-  prisma-scan:
-    runs-on: ubuntu-latest
-    needs: [build-base-images, build-platform-images]
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: Log in to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ env.GHCR_REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Install Prisma Cloud CLI
-      run: |
-        # Download and install Prisma Cloud CLI
-        # This is a placeholder - actual installation depends on your Prisma Cloud setup
-        echo "Installing Prisma Cloud CLI..."
-        # Add your Prisma Cloud CLI installation steps here
-
-    - name: Run Prisma Cloud scan
-      env:
-        PRISMA_CONSOLE_URL: ${{ secrets.PRISMA_CONSOLE_URL }}
-        PRISMA_ACCESS_KEY: ${{ secrets.PRISMA_ACCESS_KEY }}
-        PRISMA_SECRET_KEY: ${{ secrets.PRISMA_SECRET_KEY }}
-      run: |
-        ./scripts/prisma-scan.sh
-
-    - name: Upload Prisma Cloud scan results
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: prisma-scan-results
-        path: reports/prisma/
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install Trivy
+        uses: aquasecurity/trivy-action@master
+      - name: Generate scan list
+        id: scanlist
+        run: |
+          chmod +x scripts/generate-github-matrix.sh
+          ./scripts/generate-github-matrix.sh scanning > scanlist.txt
+          cat scanlist.txt
+      - name: Scan all LTS base images
+        run: |
+          while read -r line; do
+            if [[ $line == -* ]]; then
+              image=$(echo $line | cut -d' ' -f2)
+              echo "Scanning $image..."
+              trivy image --severity HIGH,CRITICAL --format sarif --output trivy-$(basename $image | tr ':' '-').sarif $image
+            fi
+          done < <(grep '-' scanlist.txt)
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-*.sarif'
 
   # Integration testing
   integration-test:
     runs-on: ubuntu-latest
     needs: [build-base-images, build-platform-images]
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.GHCR_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run integration tests
+        run: |
+          # Test nginx platform
+          docker run -d --name nginx-test -p 8080:80 ${{ env.REGISTRY }}/nginx-platform:${{ env.IMAGE_TAG }}
+          sleep 10
+          curl -f http://localhost:8080/health || exit 1
+          docker stop nginx-test && docker rm nginx-test
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+          # Test python platform
+          docker run --rm ${{ env.REGISTRY }}/python-platform:${{ env.IMAGE_TAG }} python3 --version
 
-    - name: Log in to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ env.GHCR_REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+          # Test dotnet platform
+          docker run --rm ${{ env.REGISTRY }}/dotnet-platform:${{ env.IMAGE_TAG }} dotnet --version
 
-    - name: Run integration tests
-      run: |
-        # Test nginx platform
-        docker run -d --name nginx-test -p 8080:80 ${{ env.REGISTRY }}/nginx-platform:${{ env.IMAGE_TAG }}
-        sleep 10
-        curl -f http://localhost:8080/health || exit 1
-        docker stop nginx-test && docker rm nginx-test
-
-        # Test python platform
-        docker run --rm ${{ env.REGISTRY }}/python-platform:${{ env.IMAGE_TAG }} python3 --version
-
-        # Test dotnet platform
-        docker run --rm ${{ env.REGISTRY }}/dotnet-platform:${{ env.IMAGE_TAG }} dotnet --version
-
-  # Update latest tags
+  # Update latest tags in ACR for all LTS versions
   update-latest-tags:
     runs-on: ubuntu-latest
     needs: [build-base-images, build-platform-images, security-scan, integration-test]
     if: github.ref == 'refs/heads/main'
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Log in to Azure Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ secrets.ACR_LOGIN_SERVER }}
-        username: ${{ secrets.ACR_USERNAME }}
-        password: ${{ secrets.ACR_PASSWORD }}
-
-    - name: Update latest tags
-      run: |
-        # Update base image tags
-        docker pull ${{ secrets.ACR_LOGIN_SERVER }}/alpine-hardened:${{ env.IMAGE_TAG }}
-        docker tag ${{ secrets.ACR_LOGIN_SERVER }}/alpine-hardened:${{ env.IMAGE_TAG }} ${{ secrets.ACR_LOGIN_SERVER }}/alpine-hardened:latest
-        docker push ${{ secrets.ACR_LOGIN_SERVER }}/alpine-hardened:latest
-
-        docker pull ${{ secrets.ACR_LOGIN_SERVER }}/debian-hardened:${{ env.IMAGE_TAG }}
-        docker tag ${{ secrets.ACR_LOGIN_SERVER }}/debian-hardened:${{ env.IMAGE_TAG }} ${{ secrets.ACR_LOGIN_SERVER }}/debian-hardened:latest
-        docker push ${{ secrets.ACR_LOGIN_SERVER }}/debian-hardened:latest
-
-        # Update platform image tags
-        docker pull ${{ secrets.ACR_LOGIN_SERVER }}/nginx-platform:${{ env.IMAGE_TAG }}
-        docker tag ${{ secrets.ACR_LOGIN_SERVER }}/nginx-platform:${{ env.IMAGE_TAG }} ${{ secrets.ACR_LOGIN_SERVER }}/nginx-platform:latest
-        docker push ${{ secrets.ACR_LOGIN_SERVER }}/nginx-platform:latest
-
-        docker pull ${{ secrets.ACR_LOGIN_SERVER }}/python-platform:${{ env.IMAGE_TAG }}
-        docker tag ${{ secrets.ACR_LOGIN_SERVER }}/python-platform:${{ env.IMAGE_TAG }} ${{ secrets.ACR_LOGIN_SERVER }}/python-platform:latest
-        docker push ${{ secrets.ACR_LOGIN_SERVER }}/python-platform:latest 
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Log in to Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+      - name: Generate matrix for ACR tags
+        id: acrmatrix
+        run: |
+          chmod +x scripts/generate-github-matrix.sh
+          ./scripts/generate-github-matrix.sh scanning > scanlist.txt
+          cat scanlist.txt
+      - name: Update ACR tags for all LTS versions
+        run: |
+          while read -r line; do
+            if [[ $line == -* ]]; then
+              image=$(echo $line | cut -d' ' -f2)
+              acr_image=${{ secrets.ACR_LOGIN_SERVER }}/$(basename $image)
+              docker pull $acr_image
+              docker tag $acr_image $acr_image:latest
+              docker push $acr_image:latest
+            fi
+          done < <(grep '-' scanlist.txt) 

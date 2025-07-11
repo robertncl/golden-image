@@ -4,6 +4,7 @@
 -include configs/ghcr-config.env
 -include configs/acr-config.env
 -include configs/lts-versions.env
+-include configs/platform-lts-versions.env
 
 # Variables
 BUILD_DATE := $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
