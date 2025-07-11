@@ -1,0 +1,116 @@
+version: '3.8'
+
+services:
+  # Base image testing
+  alpine-test:
+    image: ${ACR_LOGIN_SERVER:-localhost}/alpine-hardened:latest
+    container_name: alpine-test
+    command: ["/bin/sh", "-c", "echo 'Alpine hardened image test' && id"]
+    profiles: ["test"]
+
+  debian-test:
+    image: ${ACR_LOGIN_SERVER:-localhost}/debian-hardened:latest
+    container_name: debian-test
+    command: ["/bin/bash", "-c", "echo 'Debian hardened image test' && id"]
+    profiles: ["test"]
+
+  redhat-test:
+    image: ${ACR_LOGIN_SERVER:-localhost}/redhat-hardened:latest
+    container_name: redhat-test
+    command: ["/bin/bash", "-c", "echo 'RedHat hardened image test' && id"]
+    profiles: ["test"]
+
+  # Platform image testing
+  nginx-test:
+    image: ${ACR_LOGIN_SERVER:-localhost}/nginx-platform:latest
+    container_name: nginx-test
+    ports:
+      - "8080:80"
+    volumes:
+      - ./test-data/nginx:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    profiles: ["test", "platform"]
+
+  openjdk-test:
+    image: ${ACR_LOGIN_SERVER:-localhost}/openjdk-platform:latest
+    container_name: openjdk-test
+    command: ["java", "-version"]
+    profiles: ["test"]
+
+  python-test:
+    image: ${ACR_LOGIN_SERVER:-localhost}/python-platform:latest
+    container_name: python-test
+    command: ["python3", "--version"]
+    profiles: ["test"]
+
+  dotnet-test:
+    image: ${ACR_LOGIN_SERVER:-localhost}/dotnet-platform:latest
+    container_name: dotnet-test
+    command: ["dotnet", "--version"]
+    profiles: ["test"]
+
+  aspnet-test:
+    image: ${ACR_LOGIN_SERVER:-localhost}/aspnet-platform:latest
+    container_name: aspnet-test
+    ports:
+      - "8081:80"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    profiles: ["test", "platform"]
+
+  tomcat-test:
+    image: ${ACR_LOGIN_SERVER:-localhost}/tomcat-platform:latest
+    container_name: tomcat-test
+    ports:
+      - "8082:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    profiles: ["test", "platform"]
+
+  springboot-test:
+    image: ${ACR_LOGIN_SERVER:-localhost}/springboot-platform:latest
+    container_name: springboot-test
+    ports:
+      - "8083:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    profiles: ["test", "platform"]
+
+  # Security scanning
+  trivy-scanner:
+    image: aquasec/trivy:latest
+    container_name: trivy-scanner
+    command: ["image", "--severity", "HIGH,CRITICAL", "${ACR_LOGIN_SERVER:-localhost}/debian-hardened:latest"]
+    profiles: ["security"]
+
+  # Build environment
+  build-env:
+    image: docker:latest
+    container_name: build-env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/workspace
+    working_dir: /workspace
+    command: ["sh", "-c", "apk add --no-cache make && make build-all"]
+    profiles: ["build"]
+
+networks:
+  default:
+    name: golden-image-network 
