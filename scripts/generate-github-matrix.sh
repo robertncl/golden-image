@@ -22,8 +22,6 @@ else
     exit 1
 fi
 
-echo "🔧 Generating GitHub Actions matrix from LTS version configuration..."
-
 # Function to generate matrix JSON
 generate_matrix() {
     echo "{"
