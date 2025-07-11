@@ -14,6 +14,7 @@ NC='\033[0m' # No Color
 # Load configurations
 source configs/ghcr-config.env
 source configs/acr-config.env
+source configs/lts-versions.env
 
 echo "🔄 Starting registry sync from GHCR to ACR..."
 
@@ -102,16 +103,23 @@ sync_all_images() {
     local success_count=0
     local total_count=0
     
-    # Base images to sync (all LTS versions)
-    base_images=(
-        "alpine-hardened:3.18"
-        "alpine-hardened:3.19"
-        "alpine-hardened:3.20"
-        "debian-hardened:11"
-        "debian-hardened:12"
-        "redhat-hardened:8"
-        "redhat-hardened:9"
-    )
+    # Base images to sync (all LTS versions from config)
+    base_images=()
+    
+    # Add Alpine versions
+    for version in $ALPINE_VERSIONS; do
+        base_images+=("alpine-hardened:$version")
+    done
+    
+    # Add Debian versions
+    for version in $DEBIAN_VERSIONS; do
+        base_images+=("debian-hardened:$version")
+    done
+    
+    # Add RedHat versions
+    for version in $REDHAT_VERSIONS; do
+        base_images+=("redhat-hardened:$version")
+    done
     
     # Platform images to sync
     platform_images=(
@@ -181,37 +189,61 @@ sync_specific_image() {
 show_sync_status() {
     echo -e "${BLUE}📊 Checking sync status...${NC}"
     
-    # Check base images (all LTS versions)
+    # Check base images (all LTS versions from config)
     echo "Base Images:"
-    for base in alpine debian redhat; do
-        case $base in
-            alpine)
-                versions=(3.18 3.19 3.20)
-                ;;
-            debian)
-                versions=(11 12)
-                ;;
-            redhat)
-                versions=(8 9)
-                ;;
-        esac
+    
+    # Check Alpine versions
+    for version in $ALPINE_VERSIONS; do
+        local ghcr_image="${GHCR_REGISTRY}/${GHCR_NAMESPACE}/alpine-hardened:${version}"
+        local acr_image="${ACR_LOGIN_SERVER}/alpine-hardened:${version}"
         
-        for version in "${versions[@]}"; do
-            local ghcr_image="${GHCR_REGISTRY}/${GHCR_NAMESPACE}/${base}-hardened:${version}"
-            local acr_image="${ACR_LOGIN_SERVER}/${base}-hardened:${version}"
-            
-            if docker manifest inspect "$ghcr_image" >/dev/null 2>&1; then
-                echo -e "  ${GREEN}✅ ${base}-hardened:${version} (GHCR)${NC}"
-            else
-                echo -e "  ${RED}❌ ${base}-hardened:${version} (GHCR)${NC}"
-            fi
-            
-            if docker manifest inspect "$acr_image" >/dev/null 2>&1; then
-                echo -e "  ${GREEN}✅ ${base}-hardened:${version} (ACR)${NC}"
-            else
-                echo -e "  ${RED}❌ ${base}-hardened:${version} (ACR)${NC}"
-            fi
-        done
+        if docker manifest inspect "$ghcr_image" >/dev/null 2>&1; then
+            echo -e "  ${GREEN}✅ alpine-hardened:${version} (GHCR)${NC}"
+        else
+            echo -e "  ${RED}❌ alpine-hardened:${version} (GHCR)${NC}"
+        fi
+        
+        if docker manifest inspect "$acr_image" >/dev/null 2>&1; then
+            echo -e "  ${GREEN}✅ alpine-hardened:${version} (ACR)${NC}"
+        else
+            echo -e "  ${RED}❌ alpine-hardened:${version} (ACR)${NC}"
+        fi
+    done
+    
+    # Check Debian versions
+    for version in $DEBIAN_VERSIONS; do
+        local ghcr_image="${GHCR_REGISTRY}/${GHCR_NAMESPACE}/debian-hardened:${version}"
+        local acr_image="${ACR_LOGIN_SERVER}/debian-hardened:${version}"
+        
+        if docker manifest inspect "$ghcr_image" >/dev/null 2>&1; then
+            echo -e "  ${GREEN}✅ debian-hardened:${version} (GHCR)${NC}"
+        else
+            echo -e "  ${RED}❌ debian-hardened:${version} (GHCR)${NC}"
+        fi
+        
+        if docker manifest inspect "$acr_image" >/dev/null 2>&1; then
+            echo -e "  ${GREEN}✅ debian-hardened:${version} (ACR)${NC}"
+        else
+            echo -e "  ${RED}❌ debian-hardened:${version} (ACR)${NC}"
+        fi
+    done
+    
+    # Check RedHat versions
+    for version in $REDHAT_VERSIONS; do
+        local ghcr_image="${GHCR_REGISTRY}/${GHCR_NAMESPACE}/redhat-hardened:${version}"
+        local acr_image="${ACR_LOGIN_SERVER}/redhat-hardened:${version}"
+        
+        if docker manifest inspect "$ghcr_image" >/dev/null 2>&1; then
+            echo -e "  ${GREEN}✅ redhat-hardened:${version} (GHCR)${NC}"
+        else
+            echo -e "  ${RED}❌ redhat-hardened:${version} (GHCR)${NC}"
+        fi
+        
+        if docker manifest inspect "$acr_image" >/dev/null 2>&1; then
+            echo -e "  ${GREEN}✅ redhat-hardened:${version} (ACR)${NC}"
+        else
+            echo -e "  ${RED}❌ redhat-hardened:${version} (ACR)${NC}"
+        fi
     done
     
     # Check platform images

@@ -111,6 +111,8 @@ The system supports multiple LTS versions for each operating system:
 
 For detailed information about LTS version support, see [LTS_VERSIONS.md](docs/LTS_VERSIONS.md).
 
+For information about configuring and managing LTS versions, see [LTS_CONFIGURATION.md](docs/LTS_CONFIGURATION.md).
+
 ## License
 
 MIT License

@@ -41,13 +41,19 @@ help:
 	@echo "  clean              - Clean build artifacts"
 	@echo "  help               - Show this help"
 	@echo ""
+	@echo "LTS Version Management:"
+	@echo "  show-lts-versions           - Show current LTS version configuration"
+	@echo "  validate-lts-config         - Validate LTS version configuration"
+	@echo ""
 	@echo "LTS Version Targets:"
-	@echo "  build-alpine-3.18/3.19/3.20 - Build specific Alpine LTS version"
-	@echo "  build-debian-11/12          - Build specific Debian LTS version"
-	@echo "  build-redhat-8/9            - Build specific RedHat LTS version"
-	@echo "  push-alpine-3.18/3.19/3.20  - Push specific Alpine LTS version"
-	@echo "  push-debian-11/12           - Push specific Debian LTS version"
-	@echo "  push-redhat-8/9             - Push specific RedHat LTS version"
+	@echo "  build-alpine-<version>      - Build specific Alpine LTS version"
+	@echo "  build-debian-<version>      - Build specific Debian LTS version"
+	@echo "  build-redhat-<version>      - Build specific RedHat LTS version"
+	@echo "  push-alpine-<version>       - Push specific Alpine LTS version"
+	@echo "  push-debian-<version>       - Push specific Debian LTS version"
+	@echo "  push-redhat-<version>       - Push specific RedHat LTS version"
+	@echo ""
+	@echo "To add/remove LTS versions, edit configs/lts-versions.env"
 
 # Build base images
 .PHONY: build-base-images
@@ -57,46 +63,63 @@ build-base-images: build-all-alpine-versions build-all-debian-versions build-all
 .PHONY: build-all-alpine-versions
 build-all-alpine-versions: $(addprefix build-alpine-,$(ALPINE_VERSIONS))
 
-build-alpine-3.18:
-	@echo "🔨 Building Alpine 3.18 LTS base image..."
-	docker build $(BUILD_ARGS) -f base-images/alpine/Dockerfile.3.18 -t $(REGISTRY)/alpine-hardened:3.18 base-images/alpine/
-
-build-alpine-3.19:
-	@echo "🔨 Building Alpine 3.19 LTS base image..."
-	docker build $(BUILD_ARGS) -f base-images/alpine/Dockerfile.3.19 -t $(REGISTRY)/alpine-hardened:3.19 base-images/alpine/
-
-build-alpine-3.20:
-	@echo "🔨 Building Alpine 3.20 LTS base image..."
-	docker build $(BUILD_ARGS) -f base-images/alpine/Dockerfile.3.20 -t $(REGISTRY)/alpine-hardened:3.20 base-images/alpine/
+# Alpine build targets are dynamically generated based on ALPINE_VERSIONS in lts-versions.env
+# To add/remove Alpine versions, edit configs/lts-versions.env and run: make validate-lts-config
 
 # Build all Debian LTS versions
 .PHONY: build-all-debian-versions
 build-all-debian-versions: $(addprefix build-debian-,$(DEBIAN_VERSIONS))
 
-build-debian-11:
-	@echo "🔨 Building Debian 11 (Bullseye) LTS base image..."
-	docker build $(BUILD_ARGS) -f base-images/debian/Dockerfile.11 -t $(REGISTRY)/debian-hardened:11 base-images/debian/
-
-build-debian-12:
-	@echo "🔨 Building Debian 12 (Bookworm) LTS base image..."
-	docker build $(BUILD_ARGS) -f base-images/debian/Dockerfile.12 -t $(REGISTRY)/debian-hardened:12 base-images/debian/
+# Debian build targets are dynamically generated based on DEBIAN_VERSIONS in lts-versions.env
+# To add/remove Debian versions, edit configs/lts-versions.env and run: make validate-lts-config
 
 # Build all RedHat LTS versions
 .PHONY: build-all-redhat-versions
 build-all-redhat-versions: $(addprefix build-redhat-,$(REDHAT_VERSIONS))
 
-build-redhat-8:
-	@echo "🔨 Building RedHat UBI 8 LTS base image..."
-	docker build $(BUILD_ARGS) -f base-images/redhat/Dockerfile.8 -t $(REGISTRY)/redhat-hardened:8 base-images/redhat/
-
-build-redhat-9:
-	@echo "🔨 Building RedHat UBI 9 LTS base image..."
-	docker build $(BUILD_ARGS) -f base-images/redhat/Dockerfile.9 -t $(REGISTRY)/redhat-hardened:9 base-images/redhat/
+# RedHat build targets are dynamically generated based on REDHAT_VERSIONS in lts-versions.env
+# To add/remove RedHat versions, edit configs/lts-versions.env and run: make validate-lts-config
 
 # Legacy targets for backward compatibility
 build-base-alpine: build-alpine-$(DEFAULT_ALPINE_VERSION)
 build-base-debian: build-debian-$(DEFAULT_DEBIAN_VERSION)
 build-base-redhat: build-redhat-$(DEFAULT_REDHAT_VERSION)
+
+# Dynamic target generation and validation
+.PHONY: validate-lts-config
+validate-lts-config:
+	@echo "🔍 Validating LTS version configuration..."
+	@for version in $(ALPINE_VERSIONS); do \
+		if [ ! -f base-images/alpine/Dockerfile.$$version ]; then \
+			echo "❌ Missing Alpine $$version Dockerfile"; \
+			exit 1; \
+		fi; \
+	done
+	@for version in $(DEBIAN_VERSIONS); do \
+		if [ ! -f base-images/debian/Dockerfile.$$version ]; then \
+			echo "❌ Missing Debian $$version Dockerfile"; \
+			exit 1; \
+		fi; \
+	done
+	@for version in $(REDHAT_VERSIONS); do \
+		if [ ! -f base-images/redhat/Dockerfile.$$version ]; then \
+			echo "❌ Missing RedHat $$version Dockerfile"; \
+			exit 1; \
+		fi; \
+	done
+	@echo "✅ LTS version configuration is valid"
+
+.PHONY: show-lts-versions
+show-lts-versions:
+	@echo "📋 Current LTS version configuration:"
+	@echo "  Alpine versions: $(ALPINE_VERSIONS)"
+	@echo "  Debian versions: $(DEBIAN_VERSIONS)"
+	@echo "  RedHat versions: $(REDHAT_VERSIONS)"
+	@echo ""
+	@echo "Default versions:"
+	@echo "  Alpine default: $(DEFAULT_ALPINE_VERSION)"
+	@echo "  Debian default: $(DEFAULT_DEBIAN_VERSION)"
+	@echo "  RedHat default: $(DEFAULT_REDHAT_VERSION)"
 
 # Build platform images
 .PHONY: build-platform-images
