@@ -26,7 +26,8 @@ build {
   }
   provisioner "shell" {
     inline = [
-      "echo 'OpenSCAP is not officially supported on Alpine. Skipping scan.'"
+      "echo 'Applying CIS hardening for Alpine...'",
+      "/tmp/harden-alpine.sh"
     ]
   }
 } 

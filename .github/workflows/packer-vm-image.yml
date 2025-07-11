@@ -46,7 +46,38 @@ jobs:
               ;;
           esac
 
+      - name: Install Trivy
+        uses: aquasecurity/trivy-action@master
+
+      - name: Trivy scan built VM image
+        id: trivy-scan
+        run: |
+          # Find the managed image name based on OS
+          case "${{ github.event.inputs.os }}" in
+            debian)
+              IMAGE_NAME="debian-hardened"
+              ;;
+            redhat)
+              IMAGE_NAME="redhat-hardened"
+              ;;
+            alpine)
+              IMAGE_NAME="alpine-hardened"
+              ;;
+            *)
+              echo "Unknown OS: ${{ github.event.inputs.os }}"
+              exit 1
+              ;;
+          esac
+          # Scan the managed image (assumes it's available locally or in Azure)
+          # You may need to adjust the image reference if it's not local
+          trivy image --severity HIGH,CRITICAL --exit-code 1 --no-progress $IMAGE_NAME || {
+            echo "::set-output name=scan_passed::false";
+            exit 1;
+          }
+          echo "::set-output name=scan_passed::true"
+
       - name: Publish to Azure Shared Image Gallery
+        if: steps.trivy-scan.outputs.scan_passed == 'true'
         env:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
@@ -61,4 +92,4 @@ jobs:
             --gallery-name myGallery \
             --gallery-image-definition myImageDef \
             --gallery-image-version 1.0.0 \
-            --managed-image /subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/myResourceGroup/providers/Microsoft.Compute/images/debian-hardened
+            --managed-image /subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/myResourceGroup/providers/Microsoft.Compute/images/${{ github.event.inputs.os }}-hardened

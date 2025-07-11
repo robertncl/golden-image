@@ -21,13 +21,9 @@ source "azure-arm" "redhat" {
 build {
   sources = ["source.azure-arm.redhat"]
   provisioner "shell" {
-    script = "../scripts/harden-redhat.sh"
-  }
-  provisioner "shell" {
     inline = [
-      "yum install -y openscap-scanner scap-security-guide",
-      "oscap xccdf eval --profile xccdf_org.ssgproject.content_profile_standard --results /tmp/openscap-results.xml /usr/share/xml/scap/ssg/content/ssg-rhel8-ds.xml || true",
-      "cat /tmp/openscap-results.xml"
+      "echo 'Applying CIS hardening for RedHat...'",
+      "/tmp/harden-redhat.sh"
     ]
   }
 } 

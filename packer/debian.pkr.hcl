@@ -21,13 +21,9 @@ source "azure-arm" "debian" {
 build {
   sources = ["source.azure-arm.debian"]
   provisioner "shell" {
-    script = "../scripts/harden-debian.sh"
-  }
-  provisioner "shell" {
     inline = [
-      "apt-get update && apt-get install -y openscap-scanner scap-security-guide",
-      "oscap xccdf eval --profile xccdf_org.ssgproject.content_profile_standard --results /tmp/openscap-results.xml /usr/share/xml/scap/ssg/content/ssg-debian11-ds.xml || true",
-      "cat /tmp/openscap-results.xml"
+      "echo 'Applying CIS hardening for Debian...'",
+      "/tmp/harden-debian.sh"
     ]
   }
 } 
