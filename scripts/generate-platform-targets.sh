@@ -15,8 +15,6 @@ source configs/lts-versions.env
 source configs/platform-lts-versions.env
 set +a
 
-echo -e "${BLUE}🔧 Generating platform build targets from LTS version configuration...${NC}"
-
 # Function to generate Nginx build targets
 generate_nginx_targets() {
     echo "# Nginx build targets"
