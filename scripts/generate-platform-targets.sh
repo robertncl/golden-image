@@ -15,99 +15,66 @@ source configs/lts-versions.env
 source configs/platform-lts-versions.env
 set +a
 
-# Function to generate Nginx build targets
+# Function to get the latest version from a space-separated list
+get_latest_version() {
+    local versions="$1"
+    for v in $versions; do latest=$v; done
+    echo $latest
+}
+
+# Function to generate platform build targets for preferred OS (Alpine if possible, else Debian)
+generate_platform_targets_preferred_os() {
+    local platform_name="$1"
+    local platform_versions_var="$2"
+    local build_arg_name="$3"
+    local image_dir="$4"
+    local platform_versions=$(eval echo \${platform_versions_var})
+    for platform_version in $platform_versions; do
+        # Prefer Alpine if available
+        if [ -n "$ALPINE_VERSIONS" ]; then
+            os="alpine"
+            os_versions="$ALPINE_VERSIONS"
+        else
+            os="debian"
+            os_versions="$DEBIAN_VERSIONS"
+        fi
+        latest_os_version=$(get_latest_version "$os_versions")
+        echo "build-$platform_name-$platform_version-$os-$latest_os_version:"
+        echo "\t@echo \"🔨 Building $platform_name $platform_version on $os $latest_os_version LTS...\""
+        echo "\tdocker build \$(BUILD_ARGS) \
+\t\t--build-arg $build_arg_name=$platform_version \
+\t\t--build-arg BASE_IMAGE=\$(REGISTRY)/$os-hardened:$latest_os_version \
+\t\t-t \$(REGISTRY)/$platform_name-$platform_version-$os-$latest_os_version \
+\t\tplatform-images/$image_dir/"
+        echo ""
+    done
+}
+
+# Nginx
+# $1: platform name, $2: versions var, $3: build arg, $4: image dir
 generate_nginx_targets() {
     echo "# Nginx build targets"
-    for nginx_version in $NGINX_VERSIONS; do
-        for os in alpine debian redhat; do
-            for os_version in $(eval echo \$${os^^}_VERSIONS); do
-                echo "build-nginx-$nginx_version-$os-$os_version:"
-                echo "	@echo \"🔨 Building Nginx $nginx_version on $os $os_version LTS...\""
-                echo "	docker build \$(BUILD_ARGS) \\"
-                echo "		--build-arg NGINX_VERSION=$nginx_version \\"
-                echo "		--build-arg BASE_IMAGE=\$(REGISTRY)/$os-hardened:$os_version \\"
-                echo "		-t \$(REGISTRY)/nginx-$nginx_version-$os-$os_version \\"
-                echo "		platform-images/nginx/"
-                echo ""
-            done
-        done
-    done
+    generate_platform_targets_preferred_os "nginx" "NGINX_VERSIONS" "NGINX_VERSION" "nginx"
 }
-
-# Function to generate OpenJDK build targets
+# OpenJDK
 generate_openjdk_targets() {
     echo "# OpenJDK build targets"
-    for openjdk_version in $OPENJDK_VERSIONS; do
-        for os in alpine debian redhat; do
-            for os_version in $(eval echo \$${os^^}_VERSIONS); do
-                echo "build-openjdk-$openjdk_version-$os-$os_version:"
-                echo "	@echo \"🔨 Building OpenJDK $openjdk_version on $os $os_version LTS...\""
-                echo "	docker build \$(BUILD_ARGS) \\"
-                echo "		--build-arg OPENJDK_VERSION=$openjdk_version \\"
-                echo "		--build-arg BASE_IMAGE=\$(REGISTRY)/$os-hardened:$os_version \\"
-                echo "		-t \$(REGISTRY)/openjdk-$openjdk_version-$os-$os_version \\"
-                echo "		platform-images/openjdk/"
-                echo ""
-            done
-        done
-    done
+    generate_platform_targets_preferred_os "openjdk" "OPENJDK_VERSIONS" "OPENJDK_VERSION" "openjdk"
 }
-
-# Function to generate Tomcat build targets
+# Tomcat
 generate_tomcat_targets() {
     echo "# Tomcat build targets"
-    for tomcat_version in $TOMCAT_VERSIONS; do
-        for os in alpine debian redhat; do
-            for os_version in $(eval echo \$${os^^}_VERSIONS); do
-                echo "build-tomcat-$tomcat_version-$os-$os_version:"
-                echo "	@echo \"🔨 Building Tomcat $tomcat_version on $os $os_version LTS...\""
-                echo "	docker build \$(BUILD_ARGS) \\"
-                echo "		--build-arg TOMCAT_VERSION=$tomcat_version \\"
-                echo "		--build-arg BASE_IMAGE=\$(REGISTRY)/$os-hardened:$os_version \\"
-                echo "		-t \$(REGISTRY)/tomcat-$tomcat_version-$os-$os_version \\"
-                echo "		platform-images/tomcat/"
-                echo ""
-            done
-        done
-    done
+    generate_platform_targets_preferred_os "tomcat" "TOMCAT_VERSIONS" "TOMCAT_VERSION" "tomcat"
 }
-
-# Function to generate Python build targets
+# Python
 generate_python_targets() {
     echo "# Python build targets"
-    for python_version in $PYTHON_VERSIONS; do
-        for os in alpine debian redhat; do
-            for os_version in $(eval echo \$${os^^}_VERSIONS); do
-                echo "build-python-$python_version-$os-$os_version:"
-                echo "	@echo \"🔨 Building Python $python_version on $os $os_version LTS...\""
-                echo "	docker build \$(BUILD_ARGS) \\"
-                echo "		--build-arg PYTHON_VERSION=$python_version \\"
-                echo "		--build-arg BASE_IMAGE=\$(REGISTRY)/$os-hardened:$os_version \\"
-                echo "		-t \$(REGISTRY)/python-$python_version-$os-$os_version \\"
-                echo "		platform-images/python/"
-                echo ""
-            done
-        done
-    done
+    generate_platform_targets_preferred_os "python" "PYTHON_VERSIONS" "PYTHON_VERSION" "python"
 }
-
-# Function to generate Spring Boot build targets
+# Spring Boot
 generate_springboot_targets() {
     echo "# Spring Boot build targets"
-    for springboot_version in $SPRINGBOOT_VERSIONS; do
-        for os in alpine debian redhat; do
-            for os_version in $(eval echo \$${os^^}_VERSIONS); do
-                echo "build-springboot-$springboot_version-$os-$os_version:"
-                echo "	@echo \"🔨 Building Spring Boot $springboot_version on $os $os_version LTS...\""
-                echo "	docker build \$(BUILD_ARGS) \\"
-                echo "		--build-arg SPRINGBOOT_VERSION=$springboot_version \\"
-                echo "		--build-arg BASE_IMAGE=\$(REGISTRY)/$os-hardened:$os_version \\"
-                echo "		-t \$(REGISTRY)/springboot-$springboot_version-$os-$os_version \\"
-                echo "		platform-images/springboot/"
-                echo ""
-            done
-        done
-    done
+    generate_platform_targets_preferred_os "springboot" "SPRINGBOOT_VERSIONS" "SPRINGBOOT_VERSION" "springboot"
 }
 
 # Function to generate ASP.NET build targets
