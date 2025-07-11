@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       os:
-        description: 'OS to build (debian, redhat, alpine)'
+        description: 'OS to build (debian, redhat, windows)'
         required: true
         default: 'debian'
 
@@ -37,8 +37,9 @@ jobs:
             redhat)
               packer build redhat.pkr.hcl
               ;;
-            alpine)
-              packer build alpine.pkr.hcl
+            windows)
+              # This build includes CIS hardening for Windows (see windows.pkr.hcl)
+              packer build windows.pkr.hcl
               ;;
             *)
               echo "Unknown OS: ${{ github.event.inputs.os }}"
@@ -60,8 +61,8 @@ jobs:
             redhat)
               IMAGE_NAME="redhat-hardened"
               ;;
-            alpine)
-              IMAGE_NAME="alpine-hardened"
+            windows)
+              IMAGE_NAME="windows-hardened"
               ;;
             *)
               echo "Unknown OS: ${{ github.event.inputs.os }}"
