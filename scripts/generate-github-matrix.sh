@@ -4,10 +4,23 @@
 
 set -e
 
-# Load LTS version configuration
-set -a
-source configs/lts-versions.env
-set +a
+# Load LTS version configuration safely
+if [ -f "configs/lts-versions.env" ]; then
+    # Read the file line by line and export variables safely
+    while IFS= read -r line; do
+        # Skip comments and empty lines
+        if [[ $line =~ ^[[:space:]]*# ]] || [[ -z "${line// }" ]]; then
+            continue
+        fi
+        # Export variables that contain '='
+        if [[ $line =~ = ]]; then
+            export "$line"
+        fi
+    done < "configs/lts-versions.env"
+else
+    echo "Error: configs/lts-versions.env not found"
+    exit 1
+fi
 
 echo "🔧 Generating GitHub Actions matrix from LTS version configuration..."
 
@@ -17,41 +30,45 @@ generate_matrix() {
     echo "  \"include\": ["
     
     # Alpine versions
+    first=true
     for version in $ALPINE_VERSIONS; do
-        echo "    {"
-        echo "      \"os\": \"alpine\","
-        echo "      \"version\": \"$version\""
-        if [ "$version" = "$(echo $ALPINE_VERSIONS | awk '{print $NF}')" ] && [ "$(echo $DEBIAN_VERSIONS | wc -w)" -eq 0 ] && [ "$(echo $REDHAT_VERSIONS | wc -w)" -eq 0 ]; then
-            echo "    }"
+        if [ "$first" = true ]; then
+            first=false
         else
             echo "    },"
         fi
+        echo "    {"
+        echo "      \"os\": \"alpine\","
+        echo "      \"version\": \"$version\""
     done
     
     # Debian versions
     for version in $DEBIAN_VERSIONS; do
-        echo "    {"
-        echo "      \"os\": \"debian\","
-        echo "      \"version\": \"$version\""
-        if [ "$version" = "$(echo $DEBIAN_VERSIONS | awk '{print $NF}')" ] && [ "$(echo $REDHAT_VERSIONS | wc -w)" -eq 0 ]; then
-            echo "    }"
+        if [ "$first" = true ]; then
+            first=false
         else
             echo "    },"
         fi
+        echo "    {"
+        echo "      \"os\": \"debian\","
+        echo "      \"version\": \"$version\""
     done
     
     # RedHat versions
     for version in $REDHAT_VERSIONS; do
-        echo "    {"
-        echo "      \"os\": \"redhat\","
-        echo "      \"version\": \"$version\""
-        if [ "$version" = "$(echo $REDHAT_VERSIONS | awk '{print $NF}')" ]; then
-            echo "    }"
+        if [ "$first" = true ]; then
+            first=false
         else
             echo "    },"
         fi
+        echo "    {"
+        echo "      \"os\": \"redhat\","
+        echo "      \"version\": \"$version\""
     done
     
+    if [ "$first" = false ]; then
+        echo "    }"
+    fi
     echo "  ]"
     echo "}"
 }
