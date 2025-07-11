@@ -75,15 +75,15 @@ Build specific platform version on specific OS:
 # Nginx 1.25 on Alpine 3.20
 docker build \
   --build-arg NGINX_VERSION=1.25 \
-  --build-arg BASE_IMAGE=ghcr.io/your-org/alpine-hardened:3.20 \
-  -t ghcr.io/your-org/nginx-1.25-alpine-3.20 \
+  --build-arg BASE_IMAGE=ghcr.io/<your-username>/alpine-base:3.20 \
+  -t ghcr.io/<your-username>/nginx-1.25-alpine-3.20 \
   platform-images/nginx/
 
 # Python 3.12 on Debian 12
 docker build \
   --build-arg PYTHON_VERSION=3.12 \
-  --build-arg BASE_IMAGE=ghcr.io/your-org/debian-hardened:12 \
-  -t ghcr.io/your-org/python-3.12-debian-12 \
+  --build-arg BASE_IMAGE=ghcr.io/<your-username>/debian-base:12 \
+  -t ghcr.io/<your-username>/python-3.12-debian-12 \
   platform-images/python/
 ```
 
@@ -92,10 +92,8 @@ docker build \
 Platform images are tagged with the format: `platform-version-os-osversion`
 
 Examples:
-- `ghcr.io/your-org/nginx-1.25-alpine-3.20`
-- `ghcr.io/your-org/python-3.12-debian-12`
-- `ghcr.io/your-org/openjdk-17-redhat-9`
-- `ghcr.io/your-org/springboot-3.2-alpine-3.19`
+- `ghcr.io/<your-username>/nginx-1.25-alpine-3.20`
+- `ghcr.io/<your-username>/python-3.12-debian-12`
 
 ## Configuration Management
 
