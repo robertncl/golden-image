@@ -68,10 +68,10 @@ make push-redhat-9
 Build specific version:
 ```bash
 # Alpine 3.18
-docker build -f base-images/alpine/Dockerfile.3.18 -t ghcr.io/your-org/alpine-hardened:3.18 base-images/alpine/
+docker build -f base-images/alpine/Dockerfile.3.18 -t ghcr.io/<your-username>/alpine-base:3.18 base-images/alpine/
 
 # Debian 11
-docker build -f base-images/debian/Dockerfile.11 -t ghcr.io/your-org/debian-hardened:11 base-images/debian/
+docker build -f base-images/debian/Dockerfile.11 -t ghcr.io/<your-username>/debian-base:11 base-images/debian/
 
 # RedHat 8
 docker build -f base-images/redhat/Dockerfile.8 -t ghcr.io/your-org/redhat-hardened:8 base-images/redhat/
@@ -81,13 +81,11 @@ docker build -f base-images/redhat/Dockerfile.8 -t ghcr.io/your-org/redhat-harde
 
 Images are tagged with their LTS version number:
 
-- `ghcr.io/your-org/alpine-hardened:3.18`
-- `ghcr.io/your-org/alpine-hardened:3.19`
-- `ghcr.io/your-org/alpine-hardened:3.20`
-- `ghcr.io/your-org/debian-hardened:11`
-- `ghcr.io/your-org/debian-hardened:12`
-- `ghcr.io/your-org/redhat-hardened:8`
-- `ghcr.io/your-org/redhat-hardened:9`
+- `ghcr.io/<your-username>/alpine-base:3.18`
+- `ghcr.io/<your-username>/alpine-base:3.19`
+- `ghcr.io/<your-username>/alpine-base:3.20`
+- `ghcr.io/<your-username>/debian-base:11`
+- `ghcr.io/<your-username>/debian-base:12`
 
 ## Security Scanning
 
