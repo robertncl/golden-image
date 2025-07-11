@@ -118,3 +118,91 @@ For information about configuring and managing LTS versions, see [LTS_CONFIGURAT
 ## License
 
 MIT License
+
+## VM Image Build with Packer and Security Scanning
+
+This project supports building Azure VM images for Alpine, Debian, and RedHat using Packer, with integrated security scanning. The process is triggered manually via GitHub Actions.
+
+### Directory Structure
+
+```
+packer/
+  alpine.pkr.hcl
+  debian.pkr.hcl
+  redhat.pkr.hcl
+  scripts/
+    harden-alpine.sh
+    harden-debian.sh
+    harden-redhat.sh
+```
+
+### How it Works
+- **Manual Trigger:** Run the workflow from the GitHub Actions tab and select the OS (alpine, debian, redhat).
+- **Packer Build:** The workflow uses Packer to build a VM image for the selected OS, running the appropriate hardening script.
+- **Security Scanning:** After the image is built, a security scan (e.g., OpenSCAP or Lynis) is run on the image.
+- **Azure Integration:** The image is published to your Azure subscription as a managed image.
+
+### Example Workflow
+
+```yaml
+name: Build Azure VM Images with Packer
+
+on:
+  workflow_dispatch:
+    inputs:
+      os:
+        description: 'OS to build (debian, redhat, alpine)'
+        required: true
+        default: 'debian'
+
+jobs:
+  build-vm-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Packer
+        uses: hashicorp/setup-packer@v2
+
+      - name: Build VM image with Packer
+        env:
+          PKR_VAR_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+          PKR_VAR_client_secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          PKR_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          PKR_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          cd packer
+          case "${{ github.event.inputs.os }}" in
+            debian)
+              packer build debian.pkr.hcl
+              ;;
+            redhat)
+              packer build redhat.pkr.hcl
+              ;;
+            alpine)
+              packer build alpine.pkr.hcl
+              ;;
+            *)
+              echo "Unknown OS: ${{ github.event.inputs.os }}"
+              exit 1
+              ;;
+          esac
+
+      - name: Security scan (OpenSCAP example)
+        run: |
+          # Example: Run OpenSCAP or Lynis on the built image
+          echo "Run security scan here"
+```
+
+### Azure Credentials
+Add the following secrets to your repo or org:
+- `AZURE_CLIENT_ID`
+- `AZURE_CLIENT_SECRET`
+- `AZURE_TENANT_ID`
+- `AZURE_SUBSCRIPTION_ID`
+
+### Notes
+- Alpine is not officially supported as an Azure VM image, but you can build a custom VHD with Packer.
+- Security scanning can be customized (OpenSCAP, Lynis, etc.).
+- Harden scripts are reused from `scripts/`.
