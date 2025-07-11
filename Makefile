@@ -155,6 +155,30 @@ scan-images:
 		echo "Trivy not found. Install it to scan images for vulnerabilities."; \
 	fi
 
+# Comprehensive security scanning with multiple tools
+.PHONY: scan-comprehensive
+scan-comprehensive:
+	@echo "🔍 Running comprehensive security scan..."
+	@./scripts/comprehensive-scan.sh
+
+# Prisma Cloud security scanning
+.PHONY: scan-prisma
+scan-prisma:
+	@echo "🔍 Running Prisma Cloud security scan..."
+	@./scripts/prisma-scan.sh
+
+# Trivy-only security scanning
+.PHONY: scan-trivy
+scan-trivy:
+	@echo "🔍 Running Trivy security scan..."
+	@./scripts/comprehensive-scan.sh --trivy-only
+
+# Prisma Cloud-only security scanning
+.PHONY: scan-prisma-only
+scan-prisma-only:
+	@echo "🔍 Running Prisma Cloud-only security scan..."
+	@./scripts/comprehensive-scan.sh --prisma-only
+
 # Clean build artifacts
 .PHONY: clean
 clean:

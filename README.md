@@ -45,9 +45,21 @@ golden-image/
 ## Quick Start
 
 1. Configure your ACR credentials in `configs/acr-config.env`
-2. Run the build system:
+2. (Optional) Configure Prisma Cloud in `configs/prisma-config.env`
+3. Run the build system:
    ```bash
    make build-all
+   ```
+4. Run security scans:
+   ```bash
+   # Comprehensive scan (Trivy + Prisma Cloud)
+   make scan-comprehensive
+   
+   # Trivy only
+   make scan-trivy
+   
+   # Prisma Cloud only
+   make scan-prisma
    ```
 
 ## Security Features
@@ -57,7 +69,11 @@ golden-image/
 - Regular security updates
 - Non-root user execution
 - Secure package management
-- Vulnerability scanning integration
+- **Dual Vulnerability Scanning**: Trivy + Prisma Cloud integration
+- **Compliance Checking**: CIS, HIPAA, PCI, SOX, NIST compliance
+- **Secret Detection**: Find hardcoded secrets and credentials
+- **Malware Detection**: Identify malicious software in images
+- **Comprehensive Reporting**: HTML and JSON security reports
 
 ## Supported Platforms
 
