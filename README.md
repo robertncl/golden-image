@@ -109,7 +109,9 @@ The system supports multiple LTS versions for each operating system:
 - **8** (May 2019 - May 2029)
 - **9** (May 2022 - May 2032)
 
-For detailed information about LTS version support, see [LTS_VERSIONS.md](docs/LTS_VERSIONS.md).
+For detailed information about OS LTS version support, see [LTS_VERSIONS.md](docs/LTS_VERSIONS.md).
+
+For information about platform LTS version support, see [PLATFORM_LTS_VERSIONS.md](docs/PLATFORM_LTS_VERSIONS.md).
 
 For information about configuring and managing LTS versions, see [LTS_CONFIGURATION.md](docs/LTS_CONFIGURATION.md).
 
