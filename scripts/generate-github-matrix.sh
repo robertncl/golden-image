@@ -30,6 +30,7 @@ generate_matrix() {
     # Alpine versions
     first=true
     for version in $ALPINE_VERSIONS; do
+        version=$(echo $version | tr -d '"')
         if [ "$first" = true ]; then
             first=false
         else
@@ -42,6 +43,7 @@ generate_matrix() {
     
     # Debian versions
     for version in $DEBIAN_VERSIONS; do
+        version=$(echo $version | tr -d '"')
         if [ "$first" = true ]; then
             first=false
         else
@@ -54,6 +56,7 @@ generate_matrix() {
     
     # RedHat versions
     for version in $REDHAT_VERSIONS; do
+        version=$(echo $version | tr -d '"')
         if [ "$first" = true ]; then
             first=false
         else
