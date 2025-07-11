@@ -10,7 +10,9 @@ on:
     - cron: '0 2 * * 0'
 
 env:
-  REGISTRY: ${{ secrets.ACR_LOGIN_SERVER }}
+  GHCR_REGISTRY: ghcr.io
+  GHCR_NAMESPACE: ${{ github.repository_owner }}
+  REGISTRY: ghcr.io/${{ github.repository_owner }}
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:
@@ -28,19 +30,19 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Log in to Azure Container Registry
+    - name: Log in to GitHub Container Registry
       uses: docker/login-action@v3
       with:
-        registry: ${{ secrets.ACR_LOGIN_SERVER }}
-        username: ${{ secrets.ACR_USERNAME }}
-        password: ${{ secrets.ACR_PASSWORD }}
+        registry: ${{ env.GHCR_REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build base image
       uses: docker/build-push-action@v5
       with:
         context: ./base-images/${{ matrix.os }}
         push: true
-        tags: ${{ secrets.ACR_LOGIN_SERVER }}/${{ matrix.os }}-hardened:${{ env.IMAGE_TAG }}
+        tags: ${{ env.REGISTRY }}/${{ matrix.os }}-hardened:${{ env.IMAGE_TAG }}
         build-args: |
           BUILD_DATE=${{ github.event.head_commit.timestamp }}
           VCS_REF=${{ github.sha }}
@@ -48,7 +50,7 @@ jobs:
 
     - name: Test base image
       run: |
-        docker run --rm ${{ secrets.ACR_LOGIN_SERVER }}/${{ matrix.os }}-hardened:${{ env.IMAGE_TAG }} echo "Base image test successful"
+        docker run --rm ${{ env.REGISTRY }}/${{ matrix.os }}-hardened:${{ env.IMAGE_TAG }} echo "Base image test successful"
 
   # Build and test platform images
   build-platform-images:
@@ -65,19 +67,19 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Log in to Azure Container Registry
+    - name: Log in to GitHub Container Registry
       uses: docker/login-action@v3
       with:
-        registry: ${{ secrets.ACR_LOGIN_SERVER }}
-        username: ${{ secrets.ACR_USERNAME }}
-        password: ${{ secrets.ACR_PASSWORD }}
+        registry: ${{ env.GHCR_REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build platform image
       uses: docker/build-push-action@v5
       with:
         context: ./platform-images/${{ matrix.platform }}
         push: true
-        tags: ${{ secrets.ACR_LOGIN_SERVER }}/${{ matrix.platform }}-platform:${{ env.IMAGE_TAG }}
+        tags: ${{ env.REGISTRY }}/${{ matrix.platform }}-platform:${{ env.IMAGE_TAG }}
         build-args: |
           BUILD_DATE=${{ github.event.head_commit.timestamp }}
           VCS_REF=${{ github.sha }}
@@ -85,7 +87,7 @@ jobs:
 
     - name: Test platform image
       run: |
-        docker run --rm ${{ secrets.ACR_LOGIN_SERVER }}/${{ matrix.platform }}-platform:${{ env.IMAGE_TAG }} echo "Platform image test successful"
+        docker run --rm ${{ env.REGISTRY }}/${{ matrix.platform }}-platform:${{ env.IMAGE_TAG }} echo "Platform image test successful"
 
   # Security scanning
   security-scan:
@@ -100,7 +102,7 @@ jobs:
       uses: aquasecurity/trivy-action@master
       with:
         scan-type: 'image'
-        scan-ref: '${{ secrets.ACR_LOGIN_SERVER }}/debian-hardened:${{ env.IMAGE_TAG }}'
+        scan-ref: '${{ env.REGISTRY }}/debian-hardened:${{ env.IMAGE_TAG }}'
         format: 'sarif'
         output: 'trivy-results.sarif'
 
@@ -122,12 +124,12 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Log in to Azure Container Registry
+    - name: Log in to GitHub Container Registry
       uses: docker/login-action@v3
       with:
-        registry: ${{ secrets.ACR_LOGIN_SERVER }}
-        username: ${{ secrets.ACR_USERNAME }}
-        password: ${{ secrets.ACR_PASSWORD }}
+        registry: ${{ env.GHCR_REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Install Prisma Cloud CLI
       run: |
@@ -163,26 +165,26 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Log in to Azure Container Registry
+    - name: Log in to GitHub Container Registry
       uses: docker/login-action@v3
       with:
-        registry: ${{ secrets.ACR_LOGIN_SERVER }}
-        username: ${{ secrets.ACR_USERNAME }}
-        password: ${{ secrets.ACR_PASSWORD }}
+        registry: ${{ env.GHCR_REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Run integration tests
       run: |
         # Test nginx platform
-        docker run -d --name nginx-test -p 8080:80 ${{ secrets.ACR_LOGIN_SERVER }}/nginx-platform:${{ env.IMAGE_TAG }}
+        docker run -d --name nginx-test -p 8080:80 ${{ env.REGISTRY }}/nginx-platform:${{ env.IMAGE_TAG }}
         sleep 10
         curl -f http://localhost:8080/health || exit 1
         docker stop nginx-test && docker rm nginx-test
 
         # Test python platform
-        docker run --rm ${{ secrets.ACR_LOGIN_SERVER }}/python-platform:${{ env.IMAGE_TAG }} python3 --version
+        docker run --rm ${{ env.REGISTRY }}/python-platform:${{ env.IMAGE_TAG }} python3 --version
 
         # Test dotnet platform
-        docker run --rm ${{ secrets.ACR_LOGIN_SERVER }}/dotnet-platform:${{ env.IMAGE_TAG }} dotnet --version
+        docker run --rm ${{ env.REGISTRY }}/dotnet-platform:${{ env.IMAGE_TAG }} dotnet --version
 
   # Update latest tags
   update-latest-tags:

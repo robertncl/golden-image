@@ -1,5 +1,5 @@
 # Spring Boot Platform Image
-FROM ${ACR_LOGIN_SERVER}/openjdk-platform:latest
+FROM ${GHCR_REGISTRY}/${GHCR_NAMESPACE}/openjdk-platform:latest
 
 # Set build arguments
 ARG BUILD_DATE
