@@ -116,11 +116,6 @@ sync_all_images() {
         base_images+=("debian-base:$version")
     done
     
-    # Add RedHat versions
-    for version in $REDHAT_VERSIONS; do
-        base_images+=("redhat-base:$version")
-    done
-    
     # Platform images to sync
     platform_images=(
         "nginx-platform:${PLATFORM_IMAGE_TAG}"
@@ -225,24 +220,6 @@ show_sync_status() {
             echo -e "  ${GREEN}✅ debian-base:${version} (ACR)${NC}"
         else
             echo -e "  ${RED}❌ debian-base:${version} (ACR)${NC}"
-        fi
-    done
-    
-    # Check RedHat versions
-    for version in $REDHAT_VERSIONS; do
-        local ghcr_image="${GHCR_REGISTRY}/${GHCR_NAMESPACE}/redhat-base:${version}"
-        local acr_image="${ACR_LOGIN_SERVER}/redhat-base:${version}"
-        
-        if docker manifest inspect "$ghcr_image" >/dev/null 2>&1; then
-            echo -e "  ${GREEN}✅ redhat-base:${version} (GHCR)${NC}"
-        else
-            echo -e "  ${RED}❌ redhat-base:${version} (GHCR)${NC}"
-        fi
-        
-        if docker manifest inspect "$acr_image" >/dev/null 2>&1; then
-            echo -e "  ${GREEN}✅ redhat-base:${version} (ACR)${NC}"
-        else
-            echo -e "  ${RED}❌ redhat-base:${version} (ACR)${NC}"
         fi
     done
     

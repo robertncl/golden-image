@@ -54,19 +54,6 @@ generate_matrix() {
         echo "      \"version\": \"$version\""
     done
     
-    # RedHat versions
-    for version in $REDHAT_VERSIONS; do
-        version=$(echo $version | tr -d '"')
-        if [ "$first" = true ]; then
-            first=false
-        else
-            echo "    },"
-        fi
-        echo "    {"
-        echo "      \"os\": \"redhat\","
-        echo "      \"version\": \"$version\""
-    done
-    
     if [ "$first" = false ]; then
         echo "    }"
     fi
@@ -90,12 +77,6 @@ generate_yaml_matrix() {
         echo "    - os: debian"
         echo "      version: $version"
     done
-    
-    # RedHat versions
-    for version in $REDHAT_VERSIONS; do
-        echo "    - os: redhat"
-        echo "      version: $version"
-    done
 }
 
 # Function to generate scanning list
@@ -111,11 +92,6 @@ generate_scanning_list() {
     # Debian versions
     for version in $DEBIAN_VERSIONS; do
         echo "  - \${{ env.REGISTRY }}/debian-base:$version"
-    done
-    
-    # RedHat versions
-    for version in $REDHAT_VERSIONS; do
-        echo "  - \${{ env.REGISTRY }}/redhat-base:$version"
     done
 }
 
