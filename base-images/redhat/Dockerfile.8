@@ -18,14 +18,14 @@ LABEL maintainer="Golden Image Build System" \
       org.opencontainers.image.licenses="MIT"
 
 # Install essential packages
-RUN microdnf update && \
-    microdnf install -y \
+RUN dnf update -y && \
+    dnf install -y \
     ca-certificates \
     curl \
     dumb-init \
     gosu \
     tini && \
-    microdnf clean all
+    dnf clean all
 
 # Create non-root user
 RUN groupadd -g 1000 appuser && \
