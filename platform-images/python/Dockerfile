@@ -25,8 +25,8 @@ USER root
 # Install Python and essential packages
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        python3.11 \
-        python3.11-dev \
+        python${PYTHON_VERSION} \
+        python${PYTHON_VERSION}-dev \
         python3-pip \
         python3-setuptools \
         python3-wheel \

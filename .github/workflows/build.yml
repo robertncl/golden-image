@@ -57,13 +57,28 @@ jobs:
         run: |
           docker run --rm ${{ env.REGISTRY }}/${{ matrix.os }}-hardened:${{ matrix.version }} echo "Base image test successful"
 
+  # Generate platform matrix dynamically
+  generate-platform-matrix:
+    runs-on: ubuntu-latest
+    needs: generate-matrix
+    outputs:
+      platform-matrix: ${{ steps.set-platform-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Generate platform matrix
+        id: set-platform-matrix
+        run: |
+          chmod +x scripts/generate-platform-targets.sh
+          PLATFORM_MATRIX_JSON=$(./scripts/generate-platform-targets.sh json)
+          echo "matrix=$PLATFORM_MATRIX_JSON" >> $GITHUB_OUTPUT
+
   # Build and test platform images
   build-platform-images:
     runs-on: ubuntu-latest
-    needs: build-base-images
+    needs: [build-base-images, generate-platform-matrix]
     strategy:
-      matrix:
-        platform: [nginx, openjdk, python, dotnet]
+      matrix: ${{ fromJson(needs.generate-platform-matrix.outputs.matrix) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -80,14 +95,16 @@ jobs:
         with:
           context: ./platform-images/${{ matrix.platform }}
           push: true
-          tags: ${{ env.REGISTRY }}/${{ matrix.platform }}-platform:${{ env.IMAGE_TAG }}
+          tags: ${{ env.REGISTRY }}/${{ matrix.platform }}-${{ matrix.platform_version }}-${{ matrix.os }}-${{ matrix.os_version }}
           build-args: |
             BUILD_DATE=${{ github.event.head_commit.timestamp }}
             VCS_REF=${{ github.sha }}
             VERSION=1.0.0
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ matrix.os }}-hardened:${{ matrix.os_version }}
+            ${{ matrix.platform_upper }}_VERSION=${{ matrix.platform_version }}
       - name: Test platform image
         run: |
-          docker run --rm ${{ env.REGISTRY }}/${{ matrix.platform }}-platform:${{ env.IMAGE_TAG }} echo "Platform image test successful"
+          docker run --rm ${{ env.REGISTRY }}/${{ matrix.platform }}-${{ matrix.platform_version }}-${{ matrix.os }}-${{ matrix.os_version }} echo "Platform image test successful"
 
   # Security scanning
   security-scan:

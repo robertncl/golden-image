@@ -1,10 +1,12 @@
 # OpenJDK Platform Image
-FROM ${GHCR_REGISTRY}/${GHCR_NAMESPACE}/debian-hardened:latest
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
 
 # Set build arguments
 ARG BUILD_DATE
 ARG VCS_REF
-ARG VERSION=17
+ARG VERSION
+ARG OPENJDK_VERSION=17
 ARG JAVA_HOME=/usr/local/openjdk-17
 
 # Set labels
@@ -24,7 +26,7 @@ USER root
 # Install OpenJDK
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        openjdk-17-jdk-headless \
+        openjdk-${OPENJDK_VERSION}-jdk-headless \
         ca-certificates \
         curl \
     && rm -rf /var/lib/apt/lists/*
