@@ -1,0 +1,181 @@
+name: Golden Image Build and Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+
+env:
+  REGISTRY: ${{ secrets.ACR_LOGIN_SERVER }}
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  # Build and test base images
+  build-base-images:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [alpine, debian, redhat]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Azure Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ secrets.ACR_LOGIN_SERVER }}
+        username: ${{ secrets.ACR_USERNAME }}
+        password: ${{ secrets.ACR_PASSWORD }}
+
+    - name: Build base image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./base-images/${{ matrix.os }}
+        push: true
+        tags: ${{ secrets.ACR_LOGIN_SERVER }}/${{ matrix.os }}-hardened:${{ env.IMAGE_TAG }}
+        build-args: |
+          BUILD_DATE=${{ github.event.head_commit.timestamp }}
+          VCS_REF=${{ github.sha }}
+          VERSION=1.0.0
+
+    - name: Test base image
+      run: |
+        docker run --rm ${{ secrets.ACR_LOGIN_SERVER }}/${{ matrix.os }}-hardened:${{ env.IMAGE_TAG }} echo "Base image test successful"
+
+  # Build and test platform images
+  build-platform-images:
+    runs-on: ubuntu-latest
+    needs: build-base-images
+    strategy:
+      matrix:
+        platform: [nginx, openjdk, python, dotnet]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Azure Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ secrets.ACR_LOGIN_SERVER }}
+        username: ${{ secrets.ACR_USERNAME }}
+        password: ${{ secrets.ACR_PASSWORD }}
+
+    - name: Build platform image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./platform-images/${{ matrix.platform }}
+        push: true
+        tags: ${{ secrets.ACR_LOGIN_SERVER }}/${{ matrix.platform }}-platform:${{ env.IMAGE_TAG }}
+        build-args: |
+          BUILD_DATE=${{ github.event.head_commit.timestamp }}
+          VCS_REF=${{ github.sha }}
+          VERSION=1.0.0
+
+    - name: Test platform image
+      run: |
+        docker run --rm ${{ secrets.ACR_LOGIN_SERVER }}/${{ matrix.platform }}-platform:${{ env.IMAGE_TAG }} echo "Platform image test successful"
+
+  # Security scanning
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: [build-base-images, build-platform-images]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Trivy
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'image'
+        scan-ref: '${{ secrets.ACR_LOGIN_SERVER }}/debian-hardened:${{ env.IMAGE_TAG }}'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  # Integration testing
+  integration-test:
+    runs-on: ubuntu-latest
+    needs: [build-base-images, build-platform-images]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Azure Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ secrets.ACR_LOGIN_SERVER }}
+        username: ${{ secrets.ACR_USERNAME }}
+        password: ${{ secrets.ACR_PASSWORD }}
+
+    - name: Run integration tests
+      run: |
+        # Test nginx platform
+        docker run -d --name nginx-test -p 8080:80 ${{ secrets.ACR_LOGIN_SERVER }}/nginx-platform:${{ env.IMAGE_TAG }}
+        sleep 10
+        curl -f http://localhost:8080/health || exit 1
+        docker stop nginx-test && docker rm nginx-test
+
+        # Test python platform
+        docker run --rm ${{ secrets.ACR_LOGIN_SERVER }}/python-platform:${{ env.IMAGE_TAG }} python3 --version
+
+        # Test dotnet platform
+        docker run --rm ${{ secrets.ACR_LOGIN_SERVER }}/dotnet-platform:${{ env.IMAGE_TAG }} dotnet --version
+
+  # Update latest tags
+  update-latest-tags:
+    runs-on: ubuntu-latest
+    needs: [build-base-images, build-platform-images, security-scan, integration-test]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Log in to Azure Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ secrets.ACR_LOGIN_SERVER }}
+        username: ${{ secrets.ACR_USERNAME }}
+        password: ${{ secrets.ACR_PASSWORD }}
+
+    - name: Update latest tags
+      run: |
+        # Update base image tags
+        docker pull ${{ secrets.ACR_LOGIN_SERVER }}/alpine-hardened:${{ env.IMAGE_TAG }}
+        docker tag ${{ secrets.ACR_LOGIN_SERVER }}/alpine-hardened:${{ env.IMAGE_TAG }} ${{ secrets.ACR_LOGIN_SERVER }}/alpine-hardened:latest
+        docker push ${{ secrets.ACR_LOGIN_SERVER }}/alpine-hardened:latest
+
+        docker pull ${{ secrets.ACR_LOGIN_SERVER }}/debian-hardened:${{ env.IMAGE_TAG }}
+        docker tag ${{ secrets.ACR_LOGIN_SERVER }}/debian-hardened:${{ env.IMAGE_TAG }} ${{ secrets.ACR_LOGIN_SERVER }}/debian-hardened:latest
+        docker push ${{ secrets.ACR_LOGIN_SERVER }}/debian-hardened:latest
+
+        # Update platform image tags
+        docker pull ${{ secrets.ACR_LOGIN_SERVER }}/nginx-platform:${{ env.IMAGE_TAG }}
+        docker tag ${{ secrets.ACR_LOGIN_SERVER }}/nginx-platform:${{ env.IMAGE_TAG }} ${{ secrets.ACR_LOGIN_SERVER }}/nginx-platform:latest
+        docker push ${{ secrets.ACR_LOGIN_SERVER }}/nginx-platform:latest
+
+        docker pull ${{ secrets.ACR_LOGIN_SERVER }}/python-platform:${{ env.IMAGE_TAG }}
+        docker tag ${{ secrets.ACR_LOGIN_SERVER }}/python-platform:${{ env.IMAGE_TAG }} ${{ secrets.ACR_LOGIN_SERVER }}/python-platform:latest
+        docker push ${{ secrets.ACR_LOGIN_SERVER }}/python-platform:latest 
