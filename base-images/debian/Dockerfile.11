@@ -1,4 +1,4 @@
-# Debian 11 (Bullseye) LTS Hardened Base Image
+# Debian 11 (Bullseye) LTS Base Image
 FROM debian:11-slim
 
 # Set build arguments
@@ -12,16 +12,25 @@ LABEL maintainer="Golden Image Build System" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.vendor="Golden Image Build System" \
-      org.opencontainers.image.title="Debian 11 (Bullseye) LTS Hardened Base" \
-      org.opencontainers.image.description="Hardened Debian 11 (Bullseye) LTS base image following CIS Container Security Best Practices" \
+      org.opencontainers.image.title="Debian 11 (Bullseye) LTS Base" \
+      org.opencontainers.image.description="Debian 11 (Bullseye) LTS base image" \
       org.opencontainers.image.source="https://github.com/your-org/golden-image" \
       org.opencontainers.image.licenses="MIT"
 
-# Copy hardening script
-COPY scripts/harden-debian.sh /tmp/harden.sh
+# Install essential packages
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    dumb-init \
+    gosu \
+    tini && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# Run hardening script
-RUN chmod +x /tmp/harden.sh && /tmp/harden.sh
+# Create non-root user
+RUN groupadd -g 1000 appuser && \
+    useradd -m -s /bin/bash -u 1000 -g appuser appuser
 
 # Set working directory
 WORKDIR /app

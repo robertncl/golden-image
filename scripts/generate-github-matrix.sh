@@ -105,17 +105,17 @@ generate_scanning_list() {
     
     # Alpine versions
     for version in $ALPINE_VERSIONS; do
-        echo "  - \${{ env.REGISTRY }}/alpine-hardened:$version"
+        echo "  - \${{ env.REGISTRY }}/alpine-base:$version"
     done
     
     # Debian versions
     for version in $DEBIAN_VERSIONS; do
-        echo "  - \${{ env.REGISTRY }}/debian-hardened:$version"
+        echo "  - \${{ env.REGISTRY }}/debian-base:$version"
     done
     
     # RedHat versions
     for version in $REDHAT_VERSIONS; do
-        echo "  - \${{ env.REGISTRY }}/redhat-hardened:$version"
+        echo "  - \${{ env.REGISTRY }}/redhat-base:$version"
     done
 }
 

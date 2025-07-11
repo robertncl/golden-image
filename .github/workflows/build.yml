@@ -51,14 +51,14 @@ jobs:
           context: .
           file: ./base-images/${{ matrix.os }}/Dockerfile.${{ matrix.version }}
           push: true
-          tags: ${{ env.REGISTRY }}/${{ matrix.os }}-hardened:${{ matrix.version }}
+          tags: ${{ env.REGISTRY }}/${{ matrix.os }}-base:${{ matrix.version }}
           build-args: |
             BUILD_DATE=${{ github.event.head_commit.timestamp }}
             VCS_REF=${{ github.sha }}
             VERSION=1.0.0
       - name: Test base image
         run: |
-          docker run --rm ${{ env.REGISTRY }}/${{ matrix.os }}-hardened:${{ matrix.version }} echo "Base image test successful"
+          docker run --rm ${{ env.REGISTRY }}/${{ matrix.os }}-base:${{ matrix.version }} echo "Base image test successful"
 
   # Generate platform matrix dynamically
   generate-platform-matrix:
@@ -106,7 +106,7 @@ jobs:
             BUILD_DATE=${{ github.event.head_commit.timestamp }}
             VCS_REF=${{ github.sha }}
             VERSION=1.0.0
-            BASE_IMAGE=${{ env.REGISTRY }}/${{ matrix.os }}-hardened:${{ matrix.os_version }}
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ matrix.os }}-base:${{ matrix.os_version }}
             ${{ matrix.platform_upper }}_VERSION=${{ matrix.platform_version }}
       - name: Test platform image
         run: |

@@ -108,17 +108,17 @@ sync_all_images() {
     
     # Add Alpine versions
     for version in $ALPINE_VERSIONS; do
-        base_images+=("alpine-hardened:$version")
+        base_images+=("alpine-base:$version")
     done
     
     # Add Debian versions
     for version in $DEBIAN_VERSIONS; do
-        base_images+=("debian-hardened:$version")
+        base_images+=("debian-base:$version")
     done
     
     # Add RedHat versions
     for version in $REDHAT_VERSIONS; do
-        base_images+=("redhat-hardened:$version")
+        base_images+=("redhat-base:$version")
     done
     
     # Platform images to sync
@@ -194,55 +194,55 @@ show_sync_status() {
     
     # Check Alpine versions
     for version in $ALPINE_VERSIONS; do
-        local ghcr_image="${GHCR_REGISTRY}/${GHCR_NAMESPACE}/alpine-hardened:${version}"
-        local acr_image="${ACR_LOGIN_SERVER}/alpine-hardened:${version}"
+        local ghcr_image="${GHCR_REGISTRY}/${GHCR_NAMESPACE}/alpine-base:${version}"
+        local acr_image="${ACR_LOGIN_SERVER}/alpine-base:${version}"
         
         if docker manifest inspect "$ghcr_image" >/dev/null 2>&1; then
-            echo -e "  ${GREEN}✅ alpine-hardened:${version} (GHCR)${NC}"
+            echo -e "  ${GREEN}✅ alpine-base:${version} (GHCR)${NC}"
         else
-            echo -e "  ${RED}❌ alpine-hardened:${version} (GHCR)${NC}"
+            echo -e "  ${RED}❌ alpine-base:${version} (GHCR)${NC}"
         fi
         
         if docker manifest inspect "$acr_image" >/dev/null 2>&1; then
-            echo -e "  ${GREEN}✅ alpine-hardened:${version} (ACR)${NC}"
+            echo -e "  ${GREEN}✅ alpine-base:${version} (ACR)${NC}"
         else
-            echo -e "  ${RED}❌ alpine-hardened:${version} (ACR)${NC}"
+            echo -e "  ${RED}❌ alpine-base:${version} (ACR)${NC}"
         fi
     done
     
     # Check Debian versions
     for version in $DEBIAN_VERSIONS; do
-        local ghcr_image="${GHCR_REGISTRY}/${GHCR_NAMESPACE}/debian-hardened:${version}"
-        local acr_image="${ACR_LOGIN_SERVER}/debian-hardened:${version}"
+        local ghcr_image="${GHCR_REGISTRY}/${GHCR_NAMESPACE}/debian-base:${version}"
+        local acr_image="${ACR_LOGIN_SERVER}/debian-base:${version}"
         
         if docker manifest inspect "$ghcr_image" >/dev/null 2>&1; then
-            echo -e "  ${GREEN}✅ debian-hardened:${version} (GHCR)${NC}"
+            echo -e "  ${GREEN}✅ debian-base:${version} (GHCR)${NC}"
         else
-            echo -e "  ${RED}❌ debian-hardened:${version} (GHCR)${NC}"
+            echo -e "  ${RED}❌ debian-base:${version} (GHCR)${NC}"
         fi
         
         if docker manifest inspect "$acr_image" >/dev/null 2>&1; then
-            echo -e "  ${GREEN}✅ debian-hardened:${version} (ACR)${NC}"
+            echo -e "  ${GREEN}✅ debian-base:${version} (ACR)${NC}"
         else
-            echo -e "  ${RED}❌ debian-hardened:${version} (ACR)${NC}"
+            echo -e "  ${RED}❌ debian-base:${version} (ACR)${NC}"
         fi
     done
     
     # Check RedHat versions
     for version in $REDHAT_VERSIONS; do
-        local ghcr_image="${GHCR_REGISTRY}/${GHCR_NAMESPACE}/redhat-hardened:${version}"
-        local acr_image="${ACR_LOGIN_SERVER}/redhat-hardened:${version}"
+        local ghcr_image="${GHCR_REGISTRY}/${GHCR_NAMESPACE}/redhat-base:${version}"
+        local acr_image="${ACR_LOGIN_SERVER}/redhat-base:${version}"
         
         if docker manifest inspect "$ghcr_image" >/dev/null 2>&1; then
-            echo -e "  ${GREEN}✅ redhat-hardened:${version} (GHCR)${NC}"
+            echo -e "  ${GREEN}✅ redhat-base:${version} (GHCR)${NC}"
         else
-            echo -e "  ${RED}❌ redhat-hardened:${version} (GHCR)${NC}"
+            echo -e "  ${RED}❌ redhat-base:${version} (GHCR)${NC}"
         fi
         
         if docker manifest inspect "$acr_image" >/dev/null 2>&1; then
-            echo -e "  ${GREEN}✅ redhat-hardened:${version} (ACR)${NC}"
+            echo -e "  ${GREEN}✅ redhat-base:${version} (ACR)${NC}"
         else
-            echo -e "  ${RED}❌ redhat-hardened:${version} (ACR)${NC}"
+            echo -e "  ${RED}❌ redhat-base:${version} (ACR)${NC}"
         fi
     done
     

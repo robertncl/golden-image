@@ -1,4 +1,4 @@
-# Alpine Linux 3.18 LTS Hardened Base Image
+# Alpine Linux 3.18 LTS Base Image
 FROM alpine:3.18
 
 # Set build arguments
@@ -12,16 +12,23 @@ LABEL maintainer="Golden Image Build System" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.vendor="Golden Image Build System" \
-      org.opencontainers.image.title="Alpine Linux 3.18 LTS Hardened Base" \
-      org.opencontainers.image.description="Hardened Alpine Linux 3.18 LTS base image following CIS Container Security Best Practices" \
+      org.opencontainers.image.title="Alpine Linux 3.18 LTS Base" \
+      org.opencontainers.image.description="Alpine Linux 3.18 LTS base image" \
       org.opencontainers.image.source="https://github.com/your-org/golden-image" \
       org.opencontainers.image.licenses="MIT"
 
-# Copy hardening script
-COPY scripts/harden-alpine.sh /tmp/harden.sh
+# Install essential packages
+RUN apk update && \
+    apk add --no-cache \
+    ca-certificates \
+    curl \
+    dumb-init \
+    su-exec \
+    tini
 
-# Run hardening script
-RUN chmod +x /tmp/harden.sh && /tmp/harden.sh
+# Create non-root user
+RUN addgroup -g 1000 appuser && \
+    adduser -D -s /bin/sh -u 1000 -G appuser appuser
 
 # Set working directory
 WORKDIR /app
