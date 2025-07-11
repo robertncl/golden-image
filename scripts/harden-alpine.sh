@@ -25,9 +25,8 @@ adduser -D -s /bin/sh -u 1000 -G appuser appuser
 # Security hardening
 echo "🔧 Applying security hardening..."
 
-# Remove unnecessary packages and files
+# Remove unnecessary packages and files (but keep essential ones)
 apk del --purge \
-    apk-tools \
     busybox \
     libc-utils \
     ssl_client
@@ -47,6 +46,9 @@ chmod 755 /app
 
 # Security configurations
 echo "📝 Configuring security settings..."
+
+# Create limits.conf if it doesn't exist
+touch /etc/security/limits.conf
 
 # Disable core dumps
 echo "* soft core 0" >> /etc/security/limits.conf

@@ -24,10 +24,8 @@ useradd -m -s /bin/bash -u 1000 -g appuser appuser
 # Security hardening
 echo "🔧 Applying security hardening..."
 
-# Remove unnecessary packages
+# Remove unnecessary packages (but keep essential ones)
 dnf remove -y \
-    dnf \
-    dnf-plugins-core \
     subscription-manager \
     subscription-manager-rhsm \
     subscription-manager-rhsm-certificates
@@ -47,6 +45,9 @@ chmod 755 /app
 
 # Security configurations
 echo "📝 Configuring security settings..."
+
+# Create limits.conf if it doesn't exist
+touch /etc/security/limits.conf
 
 # Disable core dumps
 echo "* soft core 0" >> /etc/security/limits.conf
