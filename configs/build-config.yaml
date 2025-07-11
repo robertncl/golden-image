@@ -1,0 +1,77 @@
+# Golden Image Build Configuration
+
+# Base OS Images
+base_images:
+  alpine:
+    version: "3.19"
+    base_image: "alpine:3.19"
+    package_manager: "apk"
+    hardening_script: "scripts/harden-alpine.sh"
+    
+  debian:
+    version: "12"
+    base_image: "debian:12-slim"
+    package_manager: "apt"
+    hardening_script: "scripts/harden-debian.sh"
+    
+  redhat:
+    version: "9"
+    base_image: "registry.access.redhat.com/ubi9/ubi-minimal:latest"
+    package_manager: "dnf"
+    hardening_script: "scripts/harden-redhat.sh"
+
+# Platform Images
+platform_images:
+  nginx:
+    base: "debian"
+    version: "1.24"
+    ports: ["80", "443"]
+    user: "nginx"
+    
+  openjdk:
+    base: "debian"
+    version: "17"
+    user: "java"
+    
+  tomcat:
+    base: "openjdk"
+    version: "10.1"
+    ports: ["8080"]
+    user: "tomcat"
+    
+  python:
+    base: "debian"
+    version: "3.11"
+    user: "python"
+    
+  springboot:
+    base: "openjdk"
+    version: "3.2"
+    ports: ["8080"]
+    user: "spring"
+    
+  aspnet:
+    base: "debian"
+    version: "8.0"
+    ports: ["80", "443"]
+    user: "aspnet"
+    
+  dotnet:
+    base: "debian"
+    version: "8.0"
+    user: "dotnet"
+
+# Build Settings
+build:
+  cache: true
+  push: true
+  platforms: ["linux/amd64", "linux/arm64"]
+  parallel: 4
+  
+# Security Settings
+security:
+  scan_images: true
+  trivy_enabled: true
+  cis_compliance: true
+  non_root_user: true
+  minimal_packages: true 
