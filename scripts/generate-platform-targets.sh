@@ -229,8 +229,42 @@ generate_show_platform_versions() {
     done
 }
 
+# Function to generate JSON matrix for GitHub Actions
+generate_json_matrix() {
+    echo "{"
+    echo "  \"include\": ["
+    
+    # Generate matrix entries for each platform
+    for platform in nginx openjdk tomcat python springboot aspnet dotnet; do
+        platform_upper=$(echo $platform | tr '[:lower:]' '[:upper:]')
+        for platform_version in $(eval echo \$${platform_upper}_VERSIONS); do
+            for os in alpine debian redhat; do
+                for os_version in $(eval echo \$${os^^}_VERSIONS); do
+                    echo "    {"
+                    echo "      \"platform\": \"$platform\","
+                    echo "      \"platform_version\": \"$platform_version\","
+                    echo "      \"platform_upper\": \"${platform_upper}_VERSION\","
+                    echo "      \"os\": \"$os\","
+                    echo "      \"os_version\": \"$os_version\""
+                    if [ "$platform" = "dotnet" ] && [ "$platform_version" = "$(echo $DOTNET_VERSIONS | awk '{print $NF}')" ] && [ "$os" = "redhat" ] && [ "$os_version" = "$(echo $REDHAT_VERSIONS | awk '{print $NF}')" ]; then
+                        echo "    }"
+                    else
+                        echo "    },"
+                    fi
+                done
+            done
+        done
+    done
+    
+    echo "  ]"
+    echo "}"
+}
+
 # Main execution
 case "${1:-help}" in
+    "json")
+        generate_json_matrix
+        ;;
     "build-targets")
         generate_nginx_targets
         generate_openjdk_targets
@@ -275,7 +309,7 @@ case "${1:-help}" in
         generate_show_platform_versions
         ;;
     *)
-        echo "Usage: $0 {build-targets|push-targets|bulk-targets|validation-targets|show-versions|all}"
+        echo "Usage: $0 {json|build-targets|push-targets|bulk-targets|validation-targets|show-versions|all}"
         echo ""
         echo "Available platform LTS versions:"
         echo "  Nginx: $NGINX_VERSIONS"
@@ -287,6 +321,7 @@ case "${1:-help}" in
         echo "  .NET Runtime: $DOTNET_VERSIONS"
         echo ""
         echo "Examples:"
+        echo "  $0 json              - Generate JSON matrix for GitHub Actions"
         echo "  $0 build-targets     - Generate build targets for all platforms"
         echo "  $0 push-targets      - Generate push targets for all platforms"
         echo "  $0 bulk-targets      - Generate bulk build/push targets"
