@@ -17,6 +17,11 @@ ACR_REGISTRY := $(ACR_LOGIN_SERVER)
 BASE_IMAGES := alpine debian redhat
 PLATFORM_IMAGES := nginx openjdk tomcat python springboot aspnet dotnet
 
+# LTS versions for each OS
+ALPINE_VERSIONS := 3.18 3.19 3.20
+DEBIAN_VERSIONS := 11 12
+REDHAT_VERSIONS := 8 9
+
 # Docker build arguments
 BUILD_ARGS := --build-arg BUILD_DATE=$(BUILD_DATE) --build-arg VCS_REF=$(VCS_REF) --build-arg VERSION=$(VERSION)
 
@@ -39,19 +44,52 @@ help:
 
 # Build base images
 .PHONY: build-base-images
-build-base-images: $(addprefix build-base-,$(BASE_IMAGES))
+build-base-images: build-all-alpine-versions build-all-debian-versions build-all-redhat-versions
 
-build-base-alpine:
-	@echo "🔨 Building Alpine base image..."
-	docker build $(BUILD_ARGS) -t $(REGISTRY)/alpine-hardened:$(BASE_IMAGE_TAG) base-images/alpine/
+# Build all Alpine LTS versions
+.PHONY: build-all-alpine-versions
+build-all-alpine-versions: $(addprefix build-alpine-,$(ALPINE_VERSIONS))
 
-build-base-debian:
-	@echo "🔨 Building Debian base image..."
-	docker build $(BUILD_ARGS) -t $(REGISTRY)/debian-hardened:$(BASE_IMAGE_TAG) base-images/debian/
+build-alpine-3.18:
+	@echo "🔨 Building Alpine 3.18 LTS base image..."
+	docker build $(BUILD_ARGS) -f base-images/alpine/Dockerfile.3.18 -t $(REGISTRY)/alpine-hardened:3.18 base-images/alpine/
 
-build-base-redhat:
-	@echo "🔨 Building RedHat base image..."
-	docker build $(BUILD_ARGS) -t $(REGISTRY)/redhat-hardened:$(BASE_IMAGE_TAG) base-images/redhat/
+build-alpine-3.19:
+	@echo "🔨 Building Alpine 3.19 LTS base image..."
+	docker build $(BUILD_ARGS) -f base-images/alpine/Dockerfile.3.19 -t $(REGISTRY)/alpine-hardened:3.19 base-images/alpine/
+
+build-alpine-3.20:
+	@echo "🔨 Building Alpine 3.20 LTS base image..."
+	docker build $(BUILD_ARGS) -f base-images/alpine/Dockerfile.3.20 -t $(REGISTRY)/alpine-hardened:3.20 base-images/alpine/
+
+# Build all Debian LTS versions
+.PHONY: build-all-debian-versions
+build-all-debian-versions: $(addprefix build-debian-,$(DEBIAN_VERSIONS))
+
+build-debian-11:
+	@echo "🔨 Building Debian 11 (Bullseye) LTS base image..."
+	docker build $(BUILD_ARGS) -f base-images/debian/Dockerfile.11 -t $(REGISTRY)/debian-hardened:11 base-images/debian/
+
+build-debian-12:
+	@echo "🔨 Building Debian 12 (Bookworm) LTS base image..."
+	docker build $(BUILD_ARGS) -f base-images/debian/Dockerfile.12 -t $(REGISTRY)/debian-hardened:12 base-images/debian/
+
+# Build all RedHat LTS versions
+.PHONY: build-all-redhat-versions
+build-all-redhat-versions: $(addprefix build-redhat-,$(REDHAT_VERSIONS))
+
+build-redhat-8:
+	@echo "🔨 Building RedHat UBI 8 LTS base image..."
+	docker build $(BUILD_ARGS) -f base-images/redhat/Dockerfile.8 -t $(REGISTRY)/redhat-hardened:8 base-images/redhat/
+
+build-redhat-9:
+	@echo "🔨 Building RedHat UBI 9 LTS base image..."
+	docker build $(BUILD_ARGS) -f base-images/redhat/Dockerfile.9 -t $(REGISTRY)/redhat-hardened:9 base-images/redhat/
+
+# Legacy targets for backward compatibility
+build-base-alpine: build-alpine-3.20
+build-base-debian: build-debian-12
+build-base-redhat: build-redhat-9
 
 # Build platform images
 .PHONY: build-platform-images
