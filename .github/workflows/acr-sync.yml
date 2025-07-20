@@ -2,8 +2,8 @@ name: ACR Sync with Hardening and Security Scanning
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 2 * * *'  # Daily at 2 AM UTC
+  # schedule:
+  #   - cron: '0 2 * * *'  # Daily at 2 AM UTC
 
 env:
   GHCR_REGISTRY: ghcr.io
