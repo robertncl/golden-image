@@ -3,8 +3,8 @@
 # Base OS Images
 base_images:
   alpine:
-    version: "3.19"
-    base_image: "alpine:3.19"
+    version: "3.20"
+    base_image: "alpine:3.20"
     package_manager: "apk"
     hardening_script: "scripts/harden-alpine.sh"
     
