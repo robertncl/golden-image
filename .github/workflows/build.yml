@@ -2,17 +2,48 @@ name: Golden Image Build and Test
 
 on:
   workflow_dispatch:
+    inputs:
+      push_images:
+        description: "Push images to GHCR"
+        type: boolean
+        default: true
+      platforms:
+        description: "Target platforms (comma-separated)"
+        type: string
+        default: "linux/amd64,linux/arm64"
+      publish_latest:
+        description: "Also tag as latest (main only)"
+        type: boolean
+        default: false
+      build_scope:
+        description: "What to build"
+        type: choice
+        options:
+          - all
+          - base-only
+          - platform-only
+        default: all
+
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+
+concurrency:
+  group: golden-image-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   GHCR_REGISTRY: ghcr.io
-  GHCR_NAMESPACE: ${{ github.actor }}
-  REGISTRY: ghcr.io/${{ github.actor }}
+  GHCR_NAMESPACE: ${{ github.repository_owner }}
+  REGISTRY: ghcr.io/${{ github.repository_owner }}
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:
   # Generate matrix dynamically
   generate-matrix:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
@@ -32,40 +63,65 @@ jobs:
   build-base-images:
     runs-on: ubuntu-latest
     needs: generate-matrix
+    timeout-minutes: 90
+    if: ${{ inputs.build_scope == 'all' || inputs.build_scope == 'base-only' }}
     strategy:
+      fail-fast: false
       matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
       # Only build for alpine and debian
       # RedHat removed
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      - name: Set up QEMU (multi-arch)
+        uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.GHCR_REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets.GHCR_USERNAME || github.repository_owner }}
+          password: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
       - name: Build base image for LTS version
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./base-images/${{ matrix.os }}/Dockerfile.${{ matrix.version }}
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ matrix.os }}-base:${{ matrix.version }}
+          push: ${{ inputs.push_images }}
+          platforms: ${{ inputs.platforms }}
+          provenance: true
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: |
+            ${{ env.REGISTRY }}/${{ matrix.os }}-base:${{ matrix.version }}
+            ${{ env.REGISTRY }}/${{ matrix.os }}-base:${{ env.IMAGE_TAG }}
+            ${{ env.REGISTRY }}/${{ matrix.os }}-hardened:${{ matrix.version }}
+            ${{ env.REGISTRY }}/${{ matrix.os }}-hardened:${{ env.IMAGE_TAG }}
           build-args: |
-            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            BUILD_DATE=${{ github.run_id }}
             VCS_REF=${{ github.sha }}
             VERSION=1.0.0
-      - name: Test base image
+      - name: Tag base images as latest (optional)
+        if: ${{ inputs.push_images && inputs.publish_latest && github.ref == 'refs/heads/main' }}
         run: |
-          docker run --rm ${{ env.REGISTRY }}/${{ matrix.os }}-base:${{ matrix.version }} echo "Base image test successful"
+          docker buildx imagetools create \
+            --tag ${{ env.REGISTRY }}/${{ matrix.os }}-base:latest \
+            ${{ env.REGISTRY }}/${{ matrix.os }}-base:${{ env.IMAGE_TAG }}
+          docker buildx imagetools create \
+            --tag ${{ env.REGISTRY }}/${{ matrix.os }}-hardened:latest \
+            ${{ env.REGISTRY }}/${{ matrix.os }}-hardened:${{ env.IMAGE_TAG }}
+      - name: Test base image
+        if: ${{ inputs.push_images }}
+        run: |
+          docker run --rm ${{ env.REGISTRY }}/${{ matrix.os }}-base:${{ env.IMAGE_TAG }} echo "Base image test successful"
 
   # Generate platform matrix dynamically
   generate-platform-matrix:
     runs-on: ubuntu-latest
     needs: generate-matrix
+    timeout-minutes: 15
     outputs:
       platform-matrix: ${{ steps.set-platform-matrix.outputs.matrix }}
     steps:
@@ -85,44 +141,66 @@ jobs:
   build-platform-images:
     runs-on: ubuntu-latest
     needs: [build-base-images, generate-platform-matrix]
+    if: ${{ inputs.build_scope == 'all' || inputs.build_scope == 'platform-only' }}
+    timeout-minutes: 120
     strategy:
+      fail-fast: false
       matrix: ${{ fromJson(needs.generate-platform-matrix.outputs.matrix) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      - name: Set up QEMU (multi-arch)
+        uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.GHCR_REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets.GHCR_USERNAME || github.repository_owner }}
+          password: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
       - name: Build platform image
         uses: docker/build-push-action@v5
         with:
           context: ./platform-images/${{ matrix.platform }}
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ matrix.platform }}-${{ matrix.platform_version }}-${{ matrix.os }}-${{ matrix.os_version }}
+          push: ${{ inputs.push_images }}
+          platforms: ${{ inputs.platforms }}
+          provenance: true
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: |
+            ${{ env.REGISTRY }}/${{ matrix.platform }}-${{ matrix.platform_version }}-${{ matrix.os }}-${{ matrix.os_version }}
+            ${{ env.REGISTRY }}/${{ matrix.platform }}-${{ matrix.platform_version }}-${{ matrix.os }}-${{ matrix.os_version }}-${{ env.IMAGE_TAG }}
+            ${{ env.REGISTRY }}/${{ matrix.platform }}-platform:${{ env.IMAGE_TAG }}
           build-args: |
-            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            BUILD_DATE=${{ github.run_id }}
             VCS_REF=${{ github.sha }}
             VERSION=1.0.0
             BASE_IMAGE=${{ env.REGISTRY }}/${{ matrix.os }}-base:${{ matrix.os_version }}
             ${{ matrix.platform_upper }}_VERSION=${{ matrix.platform_version }}
-      - name: Test platform image
+            GHCR_NAMESPACE=${{ env.GHCR_NAMESPACE }}
+      - name: Tag platform images as latest (optional)
+        if: ${{ inputs.push_images && inputs.publish_latest && github.ref == 'refs/heads/main' }}
         run: |
-          docker run --rm ${{ env.REGISTRY }}/${{ matrix.platform }}-${{ matrix.platform_version }}-${{ matrix.os }}-${{ matrix.os_version }} echo "Platform image test successful"
+          docker buildx imagetools create \
+            --tag ${{ env.REGISTRY }}/${{ matrix.platform }}-platform:latest \
+            ${{ env.REGISTRY }}/${{ matrix.platform }}-platform:${{ env.IMAGE_TAG }}
+      - name: Test platform image
+        if: ${{ inputs.push_images }}
+        run: |
+          docker run --rm ${{ env.REGISTRY }}/${{ matrix.platform }}-platform:${{ env.IMAGE_TAG }} echo "Platform image test successful"
 
   # Security scanning
   security-scan:
     runs-on: ubuntu-latest
     needs: [build-base-images, build-platform-images]
+    timeout-minutes: 60
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Install Trivy
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.24.0
       - name: Generate scan list
         id: scanlist
         run: |
@@ -148,6 +226,7 @@ jobs:
   integration-test:
     runs-on: ubuntu-latest
     needs: [build-base-images, build-platform-images]
+    timeout-minutes: 60
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -157,8 +236,8 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ env.GHCR_REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets.GHCR_USERNAME || github.repository_owner }}
+          password: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
       - name: Run integration tests
         run: |
           # Test nginx platform
