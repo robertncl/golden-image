@@ -23,7 +23,7 @@ LABEL maintainer="Golden Image Build System" \
 USER root
 
 # Install Nginx
-RUN apk update && \
+RUN apk update && apk upgrade --no-cache && \
     apk add --no-cache \
         nginx=${NGINX_VERSION}* \
         ca-certificates \

@@ -23,7 +23,7 @@ LABEL maintainer="Golden Image Build System" \
 USER root
 
 # Install Python and essential packages
-RUN apk update && \
+RUN apk update && apk upgrade --no-cache && \
     apk add --no-cache \
         python${PYTHON_VERSION} \
         python${PYTHON_VERSION}-dev \

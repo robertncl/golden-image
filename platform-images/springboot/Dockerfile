@@ -22,6 +22,7 @@ USER root
 
 # Install additional packages for Spring Boot
 RUN apt-get update && \
+    apt-get upgrade -y --no-install-recommends && \
     apt-get install -y --no-install-recommends \
         curl \
         ca-certificates \

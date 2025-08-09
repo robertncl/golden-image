@@ -22,6 +22,7 @@ USER root
 
 # Install Tomcat
 RUN apt-get update && \
+    apt-get upgrade -y --no-install-recommends && \
     apt-get install -y --no-install-recommends \
         wget \
         ca-certificates \

@@ -1,5 +1,5 @@
 # Alpine Linux Hardened Base Image
-FROM alpine:3.19
+FROM alpine:3.20
 
 # Set build arguments
 ARG BUILD_DATE
@@ -17,10 +17,9 @@ LABEL maintainer="Golden Image Build System" \
       org.opencontainers.image.source="https://github.com/your-org/golden-image" \
       org.opencontainers.image.licenses="MIT"
 
-# Copy hardening script
+# Update packages to latest and run hardening
+RUN apk update && apk upgrade --no-cache
 COPY scripts/harden-alpine.sh /tmp/harden.sh
-
-# Run hardening script
 RUN chmod +x /tmp/harden.sh && /tmp/harden.sh
 
 # Set working directory

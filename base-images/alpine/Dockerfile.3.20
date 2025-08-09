@@ -18,7 +18,7 @@ LABEL maintainer="Golden Image Build System" \
       org.opencontainers.image.licenses="MIT"
 
 # Install essential packages
-RUN apk update && \
+RUN apk update && apk upgrade --no-cache && \
     apk add --no-cache \
     ca-certificates \
     curl \

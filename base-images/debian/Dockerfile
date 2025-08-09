@@ -17,10 +17,9 @@ LABEL maintainer="Golden Image Build System" \
       org.opencontainers.image.source="https://github.com/your-org/golden-image" \
       org.opencontainers.image.licenses="MIT"
 
-# Copy hardening script
+# Update packages to latest and run hardening
+RUN apt-get update && apt-get upgrade -y --no-install-recommends && apt-get clean && rm -rf /var/lib/apt/lists/*
 COPY scripts/harden-debian.sh /tmp/harden.sh
-
-# Run hardening script
 RUN chmod +x /tmp/harden.sh && /tmp/harden.sh
 
 # Set working directory
