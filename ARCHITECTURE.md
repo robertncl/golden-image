@@ -68,18 +68,26 @@ platform-images/
 ### 3. Security Layer
 ```
 scripts/
-├── harden-alpine.sh       # Alpine hardening script
-├── harden-debian.sh       # Debian hardening script
-├── harden-redhat.sh       # RedHat hardening script
-├── security-scan.sh       # Vulnerability scanning
+├── container/             # Build-time container hardening (CIS Docker Benchmark v1.7.0)
+│   ├── harden-alpine.sh
+│   ├── harden-debian.sh
+│   ├── harden-redhat.sh
+│   └── harden-runtime.sh  # re-strip setuid + purge caches in platform images
+├── vm/                    # Host hardening for Packer VM images (kept separate!)
+│   ├── harden-{debian,redhat,alpine}.sh
+│   ├── harden-windows.ps1
+│   └── openscap-remediate.sh   # OpenSCAP CIS remediation + scoring gate
+├── cis-verify.sh          # CIS gate: trivy image (vuln/secret/misconfig)
+├── lint-dockerfiles.sh    # CIS gate: trivy config (Dockerfile build checks)
+├── local-build-test.sh    # Build + CIS-verify everything on Docker Desktop
 └── build-helper.sh        # Build utilities
 ```
 
 **Security Measures:**
-- CIS Container Security Best Practices
-- Vulnerability scanning with Trivy
-- Regular security updates
-- Secure defaults and configurations
+- CIS Docker Benchmark v1.7.0 hardening, applied at build time
+- Hard-fail CIS gate (Trivy) before any image is pushed — container hardening and
+  VM hardening are strictly separate (`scripts/container/` vs `scripts/vm/`)
+- Non-root execution, digest-pinned bases, regular security updates
 
 ### 4. Configuration Layer
 ```

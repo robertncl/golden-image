@@ -145,19 +145,31 @@ Based on the hardened base images, platform images include:
 
 ## Security Features
 
-### CIS Container Security Best Practices
-- Non-root user execution
-- Minimal attack surface
-- Secure package management
-- Regular security updates
-- Vulnerability scanning integration
+### CIS Docker Benchmark v1.7.0 compliance
+- Non-root user execution (`appuser`, uid 10001) — final `USER` is never root
+- Upstream base images pinned by digest; minimal attack surface
+- setuid/setgid bits stripped; world-writable bits removed; caches purged
+- HEALTHCHECK on every image; COPY-only (no ADD); no secrets in the image/context
+- Hard-fail CIS gate before any push (see below)
 
-### Hardening Measures
-- Remove unnecessary packages
-- Set proper file permissions
-- Configure security limits
-- Disable core dumps
-- Use secure defaults
+### CIS verification gate (Trivy)
+Every image must pass two Trivy-powered checks or the build fails:
+- `scripts/lint-dockerfiles.sh` → `trivy config` (Dockerfile CIS build checks)
+- `scripts/cis-verify.sh` → `trivy image --scanners vuln,secret,misconfig`
+
+```bash
+make lint-dockerfiles
+make cis-verify IMAGE=ghcr.io/<ns>/alpine-hardened:3.20
+```
+
+> Dockle is intentionally not used (its container image carried vulnerabilities);
+> Trivy provides equivalent CIS-DI coverage. See [docs/CIS-COMPLIANCE.md](docs/CIS-COMPLIANCE.md).
+
+### Build & verify everything locally on Docker Desktop
+```bash
+./scripts/local-build-test.sh                              # bases + nginx/python + CIS gate
+./scripts/local-build-test.sh --all-platforms --with-redhat
+```
 
 ## Usage Examples
 
@@ -279,10 +291,15 @@ build:
 ```
 
 ### Custom Hardening
-Modify hardening scripts in `scripts/` directory:
-- `harden-alpine.sh` - Alpine-specific hardening
-- `harden-debian.sh` - Debian-specific hardening
-- `harden-redhat.sh` - RedHat-specific hardening
+Container hardening (runs during `docker build`, CIS Docker Benchmark) lives in
+`scripts/container/`:
+- `harden-alpine.sh` / `harden-debian.sh` / `harden-redhat.sh` — base-image hardening
+- `harden-runtime.sh` — re-applied by platform images after installing packages
+
+VM/host hardening (runs on a real VM via Packer, CIS Linux/Windows Benchmarks)
+lives in `scripts/vm/` and is kept strictly separate:
+- `harden-debian.sh` / `harden-redhat.sh` / `harden-alpine.sh` / `harden-windows.ps1`
+- `openscap-remediate.sh` — OpenSCAP CIS remediation + scoring gate
 
 ### Custom Platform Images
 Add new platform images by:
