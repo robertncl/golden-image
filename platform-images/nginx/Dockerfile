@@ -1,13 +1,13 @@
 # syntax=docker/dockerfile:1
 # Nginx platform image — built on the CIS-hardened Alpine base, runs fully
 # non-root on an unprivileged port (8080). Build context is the repo root.
-ARG BASE_IMAGE=ghcr.io/your-org/alpine-hardened:3.20
+ARG BASE_IMAGE=ghcr.io/your-org/alpine-hardened:3.24
 FROM ${BASE_IMAGE}
 
 ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION=1.0.0
-ARG NGINX_VERSION=1.26
+ARG NGINX_VERSION=1.28
 
 LABEL maintainer="Golden Image Build System" \
       org.opencontainers.image.created="${BUILD_DATE}" \

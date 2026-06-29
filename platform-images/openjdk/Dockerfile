@@ -1,13 +1,13 @@
 # syntax=docker/dockerfile:1
 # OpenJDK platform image — built on the CIS-hardened Debian base, runs non-root.
 # Build context is the repo root.
-ARG BASE_IMAGE=ghcr.io/your-org/debian-hardened:12
+ARG BASE_IMAGE=ghcr.io/your-org/debian-hardened:13
 FROM ${BASE_IMAGE}
 
 ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION=1.0.0
-ARG OPENJDK_VERSION=17
+ARG OPENJDK_VERSION=21
 ARG TARGETARCH
 
 LABEL maintainer="Golden Image Build System" \

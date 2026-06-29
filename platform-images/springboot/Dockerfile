@@ -1,13 +1,13 @@
 # syntax=docker/dockerfile:1
 # Spring Boot platform image — built on the CIS-hardened OpenJDK platform image,
 # runs non-root. BASE_IMAGE must be an openjdk-platform image (has a JRE).
-ARG BASE_IMAGE=ghcr.io/your-org/openjdk-platform:17-debian-12
+ARG BASE_IMAGE=ghcr.io/your-org/openjdk-platform:21-debian-13
 FROM ${BASE_IMAGE}
 
 ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION=1.0.0
-ARG SPRINGBOOT_VERSION=3.2
+ARG SPRINGBOOT_VERSION=3.5
 
 LABEL maintainer="Golden Image Build System" \
       org.opencontainers.image.created="${BUILD_DATE}" \

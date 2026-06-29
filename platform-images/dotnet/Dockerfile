@@ -2,13 +2,13 @@
 # .NET Runtime platform image — built on the CIS-hardened Debian base, runs
 # non-root. The runtime is installed from Microsoft's official, signed apt feed
 # (CIS 4.11 — verified packages).
-ARG BASE_IMAGE=ghcr.io/your-org/debian-hardened:12
+ARG BASE_IMAGE=ghcr.io/your-org/debian-hardened:13
 FROM ${BASE_IMAGE}
 
 ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION=1.0.0
-ARG DOTNET_VERSION=8.0
+ARG DOTNET_VERSION=10.0
 
 LABEL maintainer="Golden Image Build System" \
       org.opencontainers.image.created="${BUILD_DATE}" \
@@ -30,10 +30,12 @@ COPY scripts/container/harden-runtime.sh /tmp/harden-runtime.sh
 RUN mkdir -p /usr/share/man/man1 && \
     apt-get update && \
     apt-get upgrade -y --no-install-recommends && \
-    apt-get install -y --no-install-recommends curl ca-certificates libicu72 && \
+    apt-get install -y --no-install-recommends curl ca-certificates && \
+    ( apt-get install -y --no-install-recommends libicu76 || \
+      apt-get install -y --no-install-recommends libicu72 ) && \
     curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh && \
     chmod +x /tmp/dotnet-install.sh && \
-    /tmp/dotnet-install.sh --runtime dotnet --version "${DOTNET_VERSION}.0" --install-dir /usr/share/dotnet && \
+    /tmp/dotnet-install.sh --runtime dotnet --channel "${DOTNET_VERSION}" --install-dir /usr/share/dotnet && \
     ln -sf /usr/share/dotnet/dotnet /usr/bin/dotnet && \
     rm -f /tmp/dotnet-install.sh && \
     apt-get purge -y curl && apt-get autoremove -y && \

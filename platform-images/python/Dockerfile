@@ -2,13 +2,13 @@
 # Python platform image — built on the CIS-hardened Alpine base, runs non-root.
 # Alpine ships a single python3 per release; PYTHON_VERSION is recorded as a
 # label for traceability. Build context is the repo root.
-ARG BASE_IMAGE=ghcr.io/your-org/alpine-hardened:3.20
+ARG BASE_IMAGE=ghcr.io/your-org/alpine-hardened:3.24
 FROM ${BASE_IMAGE}
 
 ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION=1.0.0
-ARG PYTHON_VERSION=3.12
+ARG PYTHON_VERSION=3.13
 
 LABEL maintainer="Golden Image Build System" \
       org.opencontainers.image.created="${BUILD_DATE}" \
