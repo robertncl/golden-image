@@ -40,8 +40,12 @@ Two Trivy-powered checks; either failing blocks the build/push:
 1. **`scripts/lint-dockerfiles.sh`** → `trivy config` lints the Dockerfiles
    against Aqua's Docker checks (AVD-DS-*), covering the CIS build practices:
    non-root final USER (DS-0002), COPY-not-ADD (DS-0005), HEALTHCHECK (DS-0026), etc.
-2. **`scripts/cis-verify.sh`** → `trivy image --scanners vuln,secret,misconfig`
-   on the built artifact (CVEs, embedded secrets, config issues).
+2. **`scripts/cis-verify.sh`** → `trivy image --scanners vuln,secret,misconfig
+   --ignore-unfixed` on the built artifact. It blocks on any **fixable**
+   HIGH/CRITICAL CVE, any embedded secret, or any image misconfiguration.
+   HIGH/CRITICAL CVEs that upstream has not yet patched are reported but do not
+   block (an already-patched image cannot remediate them); set `IGNORE_UNFIXED=0`
+   to gate on all. See [../reports/vulnerability-comparison.md](../reports/vulnerability-comparison.md).
 
 > **No Dockle.** The pipeline intentionally does not use the `goodwithtech/dockle`
 > container image (it carried vulnerabilities). Trivy — already trusted and used

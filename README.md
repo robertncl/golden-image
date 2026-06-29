@@ -74,13 +74,13 @@ golden-image/
    ```bash
    # Base images + nginx/python, then CIS-verify them
    ./scripts/local-build-test.sh
-   # Everything, including JVM/.NET platforms and the UBI 9 base
+   # Everything, including JVM/.NET platforms and the UBI 10 base
    ./scripts/local-build-test.sh --all-platforms --with-redhat
    ```
 6. Run the CIS gates / scans individually:
    ```bash
    make lint-dockerfiles                                     # CIS Docker build checks (trivy config)
-   make cis-verify IMAGE=ghcr.io/<ns>/alpine-hardened:3.20   # built-image scan (trivy image)
+   make cis-verify IMAGE=ghcr.io/<ns>/alpine-hardened:3.24   # built-image scan (trivy image)
    make scan-comprehensive                                   # Trivy (+ optional Prisma) vuln scan
    ```
 

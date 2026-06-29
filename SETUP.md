@@ -159,7 +159,7 @@ Every image must pass two Trivy-powered checks or the build fails:
 
 ```bash
 make lint-dockerfiles
-make cis-verify IMAGE=ghcr.io/<ns>/alpine-hardened:3.20
+make cis-verify IMAGE=ghcr.io/<ns>/alpine-hardened:3.24
 ```
 
 > Dockle is intentionally not used (its container image carried vulnerabilities);

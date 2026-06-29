@@ -277,7 +277,7 @@ lint-dockerfiles:
 	@./scripts/lint-dockerfiles.sh
 
 # CIS verification gate for a built image (trivy: vuln+secret+misconfig). Hard fail.
-# Usage: make cis-verify IMAGE=ghcr.io/<ns>/alpine-hardened:3.20
+# Usage: make cis-verify IMAGE=ghcr.io/<ns>/alpine-hardened:3.24
 .PHONY: cis-verify
 cis-verify:
 	@if [ -z "$(IMAGE)" ]; then echo "❌ Please specify IMAGE=<image:tag>"; exit 1; fi

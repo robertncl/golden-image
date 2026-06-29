@@ -26,6 +26,11 @@ fi
 TRIVY_SEVERITY="${TRIVY_SEVERITY:-HIGH,CRITICAL}"
 TRIVY_SCANNERS="${TRIVY_SCANNERS:-vuln,secret,misconfig}"
 TRIVY_VERSION="${TRIVY_VERSION:-0.55.0}"
+# Gate only on vulnerabilities that have an available fix — an image already
+# patched to the latest packages cannot remediate CVEs upstream hasn't fixed,
+# so blocking on them would be unactionable. Set IGNORE_UNFIXED=0 to gate on all.
+IGNORE_UNFIXED_FLAG=""
+[ "${IGNORE_UNFIXED:-1}" = "1" ] && IGNORE_UNFIXED_FLAG="--ignore-unfixed"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 rc=0
@@ -34,13 +39,13 @@ run_trivy() {
   local image="$1"
   echo -e "${BLUE}🔍 Trivy (${TRIVY_SCANNERS}) -> ${image}${NC}"
   if command -v trivy >/dev/null 2>&1; then
-    trivy image --scanners "${TRIVY_SCANNERS}" \
+    trivy image --scanners "${TRIVY_SCANNERS}" ${IGNORE_UNFIXED_FLAG} \
       --severity "${TRIVY_SEVERITY}" --exit-code 1 --no-progress "${image}"
   else
     # Fall back to the official Trivy image (Trivy publishes a minimal, regularly
     # rebuilt image) if no local binary is available.
     docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-      "aquasec/trivy:${TRIVY_VERSION}" image --scanners "${TRIVY_SCANNERS}" \
+      "aquasec/trivy:${TRIVY_VERSION}" image --scanners "${TRIVY_SCANNERS}" ${IGNORE_UNFIXED_FLAG} \
       --severity "${TRIVY_SEVERITY}" --exit-code 1 --no-progress "${image}"
   fi
 }
