@@ -25,7 +25,10 @@ USER root
 ENV DEBIAN_FRONTEND=noninteractive
 
 COPY scripts/container/harden-runtime.sh /tmp/harden-runtime.sh
-RUN apt-get update && \
+# Recreate /usr/share/man/man1 (purged by the base hardening) so package
+# post-install scripts that register man pages do not fail on the slim base.
+RUN mkdir -p /usr/share/man/man1 && \
+    apt-get update && \
     apt-get upgrade -y --no-install-recommends && \
     apt-get install -y --no-install-recommends curl ca-certificates && \
     curl -fsSL -o /tmp/ms-prod.deb https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb && \

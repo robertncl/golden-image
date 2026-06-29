@@ -25,7 +25,10 @@ USER root
 ENV DEBIAN_FRONTEND=noninteractive
 
 COPY scripts/container/harden-runtime.sh /tmp/harden-runtime.sh
-RUN apt-get update && \
+# Recreate /usr/share/man/man1 (purged by the base hardening): the OpenJDK
+# post-install runs update-alternatives, which fails without it on slim bases.
+RUN mkdir -p /usr/share/man/man1 && \
+    apt-get update && \
     apt-get upgrade -y --no-install-recommends && \
     apt-get install -y --no-install-recommends "openjdk-${OPENJDK_VERSION}-jre-headless" && \
     chown -R appuser:appuser /app && \
