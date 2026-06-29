@@ -53,7 +53,20 @@ generate_matrix() {
         echo "      \"os\": \"debian\","
         echo "      \"version\": \"$version\""
     done
-    
+
+    # RedHat UBI versions
+    for version in $REDHAT_VERSIONS; do
+        version=$(echo $version | tr -d '"')
+        if [ "$first" = true ]; then
+            first=false
+        else
+            echo "    },"
+        fi
+        echo "    {"
+        echo "      \"os\": \"redhat\","
+        echo "      \"version\": \"$version\""
+    done
+
     if [ "$first" = false ]; then
         echo "    }"
     fi
@@ -77,6 +90,12 @@ generate_yaml_matrix() {
         echo "    - os: debian"
         echo "      version: $version"
     done
+
+    # RedHat UBI versions
+    for version in $REDHAT_VERSIONS; do
+        echo "    - os: redhat"
+        echo "      version: $version"
+    done
 }
 
 # Function to generate scanning list
@@ -86,12 +105,17 @@ generate_scanning_list() {
     
     # Alpine versions
     for version in $ALPINE_VERSIONS; do
-        echo "  - \${{ env.REGISTRY }}/alpine-base:$version"
+        echo "  - \${{ env.REGISTRY }}/alpine-hardened:$version"
     done
-    
+
     # Debian versions
     for version in $DEBIAN_VERSIONS; do
-        echo "  - \${{ env.REGISTRY }}/debian-base:$version"
+        echo "  - \${{ env.REGISTRY }}/debian-hardened:$version"
+    done
+
+    # RedHat UBI versions
+    for version in $REDHAT_VERSIONS; do
+        echo "  - \${{ env.REGISTRY }}/redhat-hardened:$version"
     done
 }
 
