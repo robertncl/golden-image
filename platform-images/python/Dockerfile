@@ -1,66 +1,46 @@
-# Python Platform Image
-ARG GHCR_NAMESPACE
-FROM ghcr.io/${GHCR_NAMESPACE}/alpine-base:3.20
+# syntax=docker/dockerfile:1
+# Python platform image — built on the CIS-hardened Alpine base, runs non-root.
+# Alpine ships a single python3 per release; PYTHON_VERSION is recorded as a
+# label for traceability. Build context is the repo root.
+ARG BASE_IMAGE=ghcr.io/your-org/alpine-hardened:3.20
+FROM ${BASE_IMAGE}
 
-# Set build arguments
 ARG BUILD_DATE
 ARG VCS_REF
-ARG VERSION
+ARG VERSION=1.0.0
 ARG PYTHON_VERSION=3.12
 
-# Set labels
 LABEL maintainer="Golden Image Build System" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.vendor="Golden Image Build System" \
-      org.opencontainers.image.title="Python Platform" \
-      org.opencontainers.image.description="Python platform image based on Alpine" \
+      org.opencontainers.image.title="Python Platform (CIS-hardened)" \
+      org.opencontainers.image.description="Python ${PYTHON_VERSION} on a CIS-hardened Alpine base, non-root" \
       org.opencontainers.image.source="https://github.com/your-org/golden-image" \
-      org.opencontainers.image.licenses="MIT"
+      org.opencontainers.image.licenses="MIT" \
+      io.golden-image.cis.benchmark="CIS Docker Benchmark v1.7.0"
 
-# Switch to root for installation
 USER root
 
-# Install Python and essential packages
+COPY scripts/container/harden-runtime.sh /tmp/harden-runtime.sh
 RUN apk update && apk upgrade --no-cache && \
-    apk add --no-cache \
-        python${PYTHON_VERSION} \
-        python${PYTHON_VERSION}-dev \
-        py3-pip \
-        py3-setuptools \
-        py3-wheel \
-        ca-certificates \
-        curl \
-        build-base
+    apk add --no-cache python3 py3-pip && \
+    python3 -m venv /opt/venv && \
+    chown -R appuser:appuser /opt/venv /app && \
+    sh /tmp/harden-runtime.sh && rm -f /tmp/harden-runtime.sh
 
-# Create python user
-RUN addgroup -g 102 python && \
-    adduser -D -u 102 -G python python
-
-# Set environment variables
-ENV PYTHONUNBUFFERED=1 \
+ENV PATH="/opt/venv/bin:${PATH}" \
+    PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Create application directory
-RUN mkdir -p /app && \
-    chown python:python /app
-
-# Switch to python user
-USER python
-
-# Set working directory
+USER appuser
 WORKDIR /app
 
-# Create virtual environment
-RUN python3 -m venv /app/venv
-ENV PATH="/app/venv/bin:$PATH"
-
-# Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD python3 --version || exit 1
 
-# Default command
-CMD ["python3", "--version"] 
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["python3"]
