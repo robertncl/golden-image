@@ -25,16 +25,17 @@ USER root
 ENV DEBIAN_FRONTEND=noninteractive
 
 COPY scripts/container/harden-runtime.sh /tmp/harden-runtime.sh
-# Recreate /usr/share/man/man1 (purged by the base hardening) so package
-# post-install scripts that register man pages do not fail on the slim base.
+# Use Microsoft's install script (multi-arch: auto-detects arm64/amd64) rather
+# than the apt feed, which doesn't carry arm64 packages.
 RUN mkdir -p /usr/share/man/man1 && \
     apt-get update && \
     apt-get upgrade -y --no-install-recommends && \
-    apt-get install -y --no-install-recommends curl ca-certificates && \
-    curl -fsSL -o /tmp/ms-prod.deb https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb && \
-    dpkg -i /tmp/ms-prod.deb && rm -f /tmp/ms-prod.deb && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends "dotnet-runtime-${DOTNET_VERSION}" && \
+    apt-get install -y --no-install-recommends curl ca-certificates libicu72 && \
+    curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh && \
+    chmod +x /tmp/dotnet-install.sh && \
+    /tmp/dotnet-install.sh --runtime dotnet --version "${DOTNET_VERSION}.0" --install-dir /usr/share/dotnet && \
+    ln -sf /usr/share/dotnet/dotnet /usr/bin/dotnet && \
+    rm -f /tmp/dotnet-install.sh && \
     apt-get purge -y curl && apt-get autoremove -y && \
     chown -R appuser:appuser /app && \
     sh /tmp/harden-runtime.sh && rm -f /tmp/harden-runtime.sh && \
