@@ -1,54 +1,47 @@
-# OpenJDK Platform Image
-ARG BASE_IMAGE
+# syntax=docker/dockerfile:1
+# OpenJDK platform image — built on the CIS-hardened Debian base, runs non-root.
+# Build context is the repo root.
+ARG BASE_IMAGE=ghcr.io/your-org/debian-hardened:12
 FROM ${BASE_IMAGE}
 
-# Set build arguments
 ARG BUILD_DATE
 ARG VCS_REF
-ARG VERSION
+ARG VERSION=1.0.0
 ARG OPENJDK_VERSION=17
-ARG JAVA_HOME=/usr/local/openjdk-17
+ARG TARGETARCH
 
-# Set labels
 LABEL maintainer="Golden Image Build System" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.vendor="Golden Image Build System" \
-      org.opencontainers.image.title="OpenJDK Platform" \
-      org.opencontainers.image.description="OpenJDK platform image based on hardened Debian" \
+      org.opencontainers.image.title="OpenJDK Platform (CIS-hardened)" \
+      org.opencontainers.image.description="OpenJDK ${OPENJDK_VERSION} JRE on a CIS-hardened Debian base, non-root" \
       org.opencontainers.image.source="https://github.com/your-org/golden-image" \
-      org.opencontainers.image.licenses="MIT"
+      org.opencontainers.image.licenses="MIT" \
+      io.golden-image.cis.benchmark="CIS Docker Benchmark v1.7.0"
 
-# Switch to root for installation
 USER root
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Install OpenJDK
+COPY scripts/container/harden-runtime.sh /tmp/harden-runtime.sh
 RUN apt-get update && \
     apt-get upgrade -y --no-install-recommends && \
-    apt-get install -y --no-install-recommends \
-        openjdk-${OPENJDK_VERSION}-jdk-headless \
-        ca-certificates \
-        curl \
-    && rm -rf /var/lib/apt/lists/*
+    apt-get install -y --no-install-recommends "openjdk-${OPENJDK_VERSION}-jre-headless" && \
+    chown -R appuser:appuser /app && \
+    sh /tmp/harden-runtime.sh && rm -f /tmp/harden-runtime.sh && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Set environment variables
-ENV JAVA_HOME=${JAVA_HOME} \
-    PATH=${JAVA_HOME}/bin:$PATH
+# JAVA_HOME is arch-specific on Debian; TARGETARCH (amd64/arm64) matches the
+# package suffix so this works for multi-arch builds.
+ENV JAVA_HOME="/usr/lib/jvm/java-${OPENJDK_VERSION}-openjdk-${TARGETARCH}" \
+    PATH="/usr/lib/jvm/java-${OPENJDK_VERSION}-openjdk-${TARGETARCH}/bin:${PATH}"
 
-# Create application directory
-RUN mkdir -p /app && \
-    chown appuser:appuser /app
-
-# Switch back to non-root user
 USER appuser
-
-# Set working directory
 WORKDIR /app
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD java -version || exit 1
 
-# Default command
-CMD ["java", "-version"] 
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["java", "-version"]

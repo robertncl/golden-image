@@ -1,69 +1,59 @@
-# Tomcat Platform Image
-FROM ${GHCR_REGISTRY}/${GHCR_NAMESPACE}/openjdk-platform:latest
+# syntax=docker/dockerfile:1
+# Tomcat platform image — built on the CIS-hardened OpenJDK platform image,
+# runs non-root. BASE_IMAGE must be an openjdk-platform image (has a JRE).
+# The Tomcat tarball is verified against a pinned SHA-512 (CIS 4.11).
+ARG BASE_IMAGE=ghcr.io/your-org/openjdk-platform:17-debian-12
+FROM ${BASE_IMAGE}
 
-# Set build arguments
 ARG BUILD_DATE
 ARG VCS_REF
-ARG VERSION=10.1
+ARG VERSION=1.0.0
+ARG TOMCAT_VERSION=10.1.34
 
-# Set labels
 LABEL maintainer="Golden Image Build System" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.vendor="Golden Image Build System" \
-      org.opencontainers.image.title="Tomcat Platform" \
-      org.opencontainers.image.description="Tomcat platform image based on OpenJDK" \
+      org.opencontainers.image.title="Tomcat Platform (CIS-hardened)" \
+      org.opencontainers.image.description="Apache Tomcat ${TOMCAT_VERSION} on a CIS-hardened OpenJDK base, non-root" \
       org.opencontainers.image.source="https://github.com/your-org/golden-image" \
-      org.opencontainers.image.licenses="MIT"
+      org.opencontainers.image.licenses="MIT" \
+      io.golden-image.cis.benchmark="CIS Docker Benchmark v1.7.0"
 
-# Switch to root for installation
 USER root
-
-# Install Tomcat
-RUN apt-get update && \
-    apt-get upgrade -y --no-install-recommends && \
-    apt-get install -y --no-install-recommends \
-        wget \
-        ca-certificates \
-    && wget -O /tmp/tomcat.tar.gz https://archive.apache.org/dist/tomcat/tomcat-10/v10.1.17/bin/apache-tomcat-10.1.17.tar.gz \
-    && mkdir -p /opt/tomcat \
-    && tar -C /opt/tomcat --strip-components=1 -xzf /tmp/tomcat.tar.gz \
-    && rm /tmp/tomcat.tar.gz \
-    && apt-get remove -y wget \
-    && apt-get autoremove -y \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create tomcat user
-RUN groupadd -g 105 tomcat && \
-    useradd -r -u 105 -g tomcat tomcat
-
-# Configure Tomcat
-RUN chown -R tomcat:tomcat /opt/tomcat && \
-    chmod +x /opt/tomcat/bin/*.sh
-
-# Set environment variables
-ENV CATALINA_HOME=/opt/tomcat \
+ENV DEBIAN_FRONTEND=noninteractive \
+    CATALINA_HOME=/opt/tomcat \
     CATALINA_BASE=/opt/tomcat \
     CATALINA_TMPDIR=/opt/tomcat/temp \
     JAVA_OPTS="-Djava.awt.headless=true -Dfile.encoding=UTF-8"
 
-# Create application directory
-RUN mkdir -p /app && \
-    chown tomcat:tomcat /app
+# Download + verify Tomcat, install, then drop privileges back to appuser.
+COPY scripts/container/harden-runtime.sh /tmp/harden-runtime.sh
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl && \
+    TMAJOR="$(echo "${TOMCAT_VERSION}" | cut -d. -f1)" && \
+    curl -fsSL -o /tmp/tomcat.tar.gz \
+      "https://archive.apache.org/dist/tomcat/tomcat-${TMAJOR}/v${TOMCAT_VERSION}/bin/apache-tomcat-${TOMCAT_VERSION}.tar.gz" && \
+    curl -fsSL -o /tmp/tomcat.tar.gz.sha512 \
+      "https://archive.apache.org/dist/tomcat/tomcat-${TMAJOR}/v${TOMCAT_VERSION}/bin/apache-tomcat-${TOMCAT_VERSION}.tar.gz.sha512" && \
+    ( cd /tmp && echo "$(cut -d' ' -f1 tomcat.tar.gz.sha512)  tomcat.tar.gz" | sha512sum -c - ) && \
+    mkdir -p /opt/tomcat && \
+    tar -C /opt/tomcat --strip-components=1 -xzf /tmp/tomcat.tar.gz && \
+    rm -rf /opt/tomcat/webapps/examples /opt/tomcat/webapps/docs \
+           /opt/tomcat/webapps/host-manager /opt/tomcat/webapps/manager && \
+    chown -R appuser:appuser /opt/tomcat && \
+    chmod -R go-w /opt/tomcat && \
+    apt-get purge -y curl && apt-get autoremove -y && \
+    sh /tmp/harden-runtime.sh && rm -f /tmp/harden-runtime.sh && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Switch to tomcat user
-USER tomcat
-
-# Set working directory
+USER appuser
 WORKDIR /app
-
-# Expose port
 EXPOSE 8080
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/ || exit 1
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD [ -d /opt/tomcat ] || exit 1
 
-# Default command
-CMD ["/opt/tomcat/bin/catalina.sh", "run"] 
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["/opt/tomcat/bin/catalina.sh", "run"]

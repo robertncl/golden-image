@@ -29,9 +29,9 @@ COPY configs/default.conf /etc/nginx/conf.d/default.conf
 COPY scripts/container/harden-runtime.sh /tmp/harden-runtime.sh
 RUN apk update && apk upgrade --no-cache && \
     apk add --no-cache nginx curl && \
-    mkdir -p /etc/nginx/conf.d /var/lib/nginx /var/log/nginx /tmp/nginx && \
+    mkdir -p /etc/nginx/conf.d /var/lib/nginx /var/log/nginx && \
     rm -f /etc/nginx/http.d/default.conf && \
-    chown -R appuser:appuser /etc/nginx /var/lib/nginx /var/log/nginx /tmp/nginx /app && \
+    chown -R appuser:appuser /etc/nginx /var/lib/nginx /var/log/nginx /app && \
     sh /tmp/harden-runtime.sh && rm -f /tmp/harden-runtime.sh
 
 USER appuser
