@@ -1,0 +1,35 @@
+# Keep the build context minimal and free of secrets (CIS Docker 4.10).
+# Only the Dockerfiles + scripts/ + configs needed at build time should ship.
+.git
+.github
+.gitignore
+**/.git
+
+# Secrets / credentials / env files — never send to the build daemon
+*.env
+configs/*.env
+**/*.pem
+**/*.key
+**/*.crt
+**/*.p12
+**/*.pfx
+**/secrets*
+**/.npmrc
+**/.netrc
+
+# Scan output and local artifacts
+reports/
+*.sarif
+*.log
+
+# Docs and project meta (not needed inside images)
+*.md
+docs/
+packer/
+docker-compose.yml
+
+# Editor / OS noise
+.vscode/
+.idea/
+.DS_Store
+**/*.swp

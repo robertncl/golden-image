@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
-# Debian 11 (Bullseye) LTS — CIS-hardened base image.
+# RedHat UBI 8 (ubi-minimal) — CIS-hardened base image.
 # Hardened to CIS Docker Benchmark v1.7.0 (section 4) + CIS Docker-Image checks.
 # Base pinned by tag AND digest (CIS 4.2 / 4.5 — trusted, immutable base).
-FROM debian:11-slim@sha256:f18adf4e1d04b1d8ba48025b8e35003f4c748ddd3dd8e875fe4e7d9a9c0dec84
+FROM registry.access.redhat.com/ubi8/ubi-minimal:latest@sha256:12b7acca2baea46b0c9322b57ef1b6cb2bf35b6be0384f690feea75af9bcf77c
 
 ARG BUILD_DATE
 ARG VCS_REF
@@ -13,21 +13,18 @@ LABEL maintainer="Golden Image Build System" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.vendor="Golden Image Build System" \
-      org.opencontainers.image.title="Debian 11 (Bullseye) CIS-Hardened Base" \
-      org.opencontainers.image.description="Debian 11 base hardened to CIS Docker Benchmark v1.7.0" \
+      org.opencontainers.image.title="RedHat UBI 8 CIS-Hardened Base" \
+      org.opencontainers.image.description="UBI 8 minimal base hardened to CIS Docker Benchmark v1.7.0" \
       org.opencontainers.image.source="https://github.com/your-org/golden-image" \
       org.opencontainers.image.licenses="MIT" \
       io.golden-image.cis.benchmark="CIS Docker Benchmark v1.7.0"
 
-ENV DEBIAN_FRONTEND=noninteractive
-
-COPY scripts/container/harden-debian.sh /tmp/harden.sh
-RUN apt-get update && \
-    apt-get upgrade -y --no-install-recommends && \
-    apt-get install -y --no-install-recommends ca-certificates tini && \
+COPY scripts/container/harden-redhat.sh /tmp/harden.sh
+RUN microdnf -y update && \
+    microdnf -y install ca-certificates shadow-utils && \
+    microdnf clean all && \
     chmod 0755 /tmp/harden.sh && /tmp/harden.sh && \
-    rm -f /tmp/harden.sh && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+    rm -f /tmp/harden.sh
 
 WORKDIR /app
 USER appuser
@@ -35,5 +32,4 @@ USER appuser
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD test -r /etc/os-release || exit 1
 
-ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["/bin/bash"]
