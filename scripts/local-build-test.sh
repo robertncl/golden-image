@@ -47,6 +47,12 @@ REDHAT_VER="${DEFAULT_REDHAT_VERSION:-$REDHAT_VER}"
 export DOCKER_BUILDKIT=1
 BUILT=()
 
+# Dockerfile CIS build-practice gate (fast, runs before any image is built).
+if [ "${VERIFY}" -eq 1 ]; then
+  printf '\033[0;34m🔒 Linting Dockerfiles against CIS build checks...\033[0m\n'
+  scripts/lint-dockerfiles.sh
+fi
+
 blue() { printf '\033[0;34m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 

@@ -287,7 +287,12 @@ scan-images:
 		echo "Trivy not found. Install it to scan images for vulnerabilities."; \
 	fi
 
-# CIS compliance verification gate (Dockle + Trivy). Fails on any violation.
+# Lint all Dockerfiles against CIS Docker build checks (trivy config). Hard fail.
+.PHONY: lint-dockerfiles
+lint-dockerfiles:
+	@./scripts/lint-dockerfiles.sh
+
+# CIS verification gate for a built image (trivy: vuln+secret+misconfig). Hard fail.
 # Usage: make cis-verify IMAGE=ghcr.io/<ns>/alpine-hardened:3.20
 .PHONY: cis-verify
 cis-verify:
