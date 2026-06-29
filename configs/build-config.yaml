@@ -17,20 +17,20 @@ cis:
 # Base OS Images (one CIS-hardened Dockerfile per LTS version)
 base_images:
   alpine:
-    version: "3.20"
-    base_image: "alpine:3.20"
+    version: "3.24"
+    base_image: "alpine:3.24"
     package_manager: "apk"
     hardening_script: "scripts/container/harden-alpine.sh"
 
   debian:
-    version: "12"
-    base_image: "debian:12-slim"
+    version: "13"
+    base_image: "debian:13-slim"
     package_manager: "apt"
     hardening_script: "scripts/container/harden-debian.sh"
 
   redhat:
-    version: "9"
-    base_image: "registry.access.redhat.com/ubi9/ubi-minimal:latest"
+    version: "10"
+    base_image: "registry.access.redhat.com/ubi10/ubi-minimal:latest"
     package_manager: "microdnf"
     hardening_script: "scripts/container/harden-redhat.sh"
 
@@ -39,41 +39,41 @@ base_images:
 platform_images:
   nginx:
     base: "alpine"
-    version: "1.26"
+    version: "1.28"
     ports: ["8080"]
     user: "appuser"
 
   python:
     base: "alpine"
-    version: "3.12"
+    version: "3.13"
     user: "appuser"
 
   openjdk:
     base: "debian"
-    version: "17"
+    version: "21"
     user: "appuser"
 
   tomcat:
     base: "openjdk"
-    version: "10.1"
+    version: "11.0"
     ports: ["8080"]
     user: "appuser"
 
   springboot:
     base: "openjdk"
-    version: "3.2"
+    version: "3.5"
     ports: ["8080"]
     user: "appuser"
 
   aspnet:
     base: "debian"
-    version: "8.0"
+    version: "10.0"
     ports: ["8080"]
     user: "appuser"
 
   dotnet:
     base: "debian"
-    version: "8.0"
+    version: "10.0"
     user: "appuser"
 
 # Build Settings

@@ -9,7 +9,7 @@ See **[docs/CIS-COMPLIANCE.md](docs/CIS-COMPLIANCE.md)** for the full control-by
 ## Overview
 
 This system creates golden images by:
-1. Building all LTS versions of Alpine (3.18, 3.19, 3.20), Debian (11, 12), and RedHat UBI (8, 9) base images from upstream bases **pinned by digest**
+1. Building all current LTS versions of Alpine (3.22, 3.23, 3.24), Debian (12, 13), and RedHat UBI (9, 10) base images from upstream bases **pinned by digest**
 2. Hardening each image to the **CIS Docker Benchmark v1.7.0** at build time (non-root `appuser` uid 10001, setuid/setgid stripped, caches purged, locked system accounts) via `scripts/container/harden-*.sh`
 3. Updating all packages to latest patched versions
 4. **CIS-verifying** every image with a hard-fail gate (`trivy config` for Dockerfile build checks + `trivy image` for vulns/secrets/misconfig) *before* it is pushed
@@ -46,7 +46,7 @@ golden-image/
 
 ## Features
 
-- **Multi-OS LTS Support**: Alpine (3.18, 3.19, 3.20), Debian (11, 12), RedHat UBI (8, 9) base images
+- **Multi-OS LTS Support**: Alpine (3.22, 3.23, 3.24), Debian (12, 13), RedHat UBI (9, 10) base images
 - **Security Hardening**: CIS Container Security Best Practices
 - **Automated Updates**: Latest package versions
 - **Multi-Platform**: Support for various application runtimes
@@ -66,9 +66,9 @@ golden-image/
    make build-all
    
    # Build specific LTS version
-   make build-alpine-3.20
-   make build-debian-12
-   make build-redhat-9
+   make build-alpine-3.24
+   make build-debian-13
+   make build-redhat-10
    ```
 5. Build everything locally on Docker Desktop and run the CIS gate (no registry needed):
    ```bash
@@ -106,17 +106,17 @@ golden-image/
 The system supports multiple LTS versions for each operating system:
 
 ### Alpine Linux
-- **3.18** (May 2023 - May 2026)
-- **3.19** (November 2023 - November 2026)
-- **3.20** (May 2024 - May 2027)
+- **3.22** (May 2025 - May 2027)
+- **3.23** (November 2025 - November 2027)
+- **3.24** (May 2026 - May 2028)
 
 ### Debian
-- **11 (Bullseye)** (August 2021 - June 2026)
 - **12 (Bookworm)** (June 2023 - June 2028)
+- **13 (Trixie)** (August 2025 - ~2030)
 
 ### RedHat UBI
-- **8** (May 2019 - May 2029)
 - **9** (May 2022 - May 2032)
+- **10** (2025 - ~2035)
 
 For detailed information about OS LTS version support, see [LTS_VERSIONS.md](docs/LTS_VERSIONS.md).
 

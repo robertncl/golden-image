@@ -38,7 +38,7 @@ for arg in "$@"; do
 done
 
 # Default versions used for the local build (kept in step with the config).
-ALPINE_VER="3.20"; DEBIAN_VER="12"; REDHAT_VER="9"
+ALPINE_VER="3.24"; DEBIAN_VER="13"; REDHAT_VER="10"
 [ -f configs/lts-versions.env ] && . configs/lts-versions.env || true
 ALPINE_VER="${DEFAULT_ALPINE_VERSION:-$ALPINE_VER}"
 DEBIAN_VER="${DEFAULT_DEBIAN_VERSION:-$DEBIAN_VER}"

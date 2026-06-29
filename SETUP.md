@@ -128,20 +128,20 @@ scoop install trivy
 ## Build Process
 
 ### Base Images
-The system builds hardened base images for:
-- **Alpine Linux 3.19** - Minimal, security-focused
-- **Debian 12** - Stable, widely supported
-- **RedHat UBI 9** - Enterprise-grade
+The system builds hardened base images for (default = latest):
+- **Alpine Linux 3.22 / 3.23 / 3.24** - Minimal, security-focused
+- **Debian 12 (Bookworm) / 13 (Trixie)** - Stable, widely supported
+- **RedHat UBI 9 / 10** - Enterprise-grade
 
 ### Platform Images
-Based on the hardened base images, platform images include:
-- **Nginx 1.24** - Web server
-- **OpenJDK 17** - Java runtime
-- **Tomcat 10.1** - Java application server
-- **Python 3.11** - Python runtime
-- **Spring Boot 3.2** - Java framework
-- **ASP.NET Core 8.0** - .NET web framework
-- **.NET Runtime 8.0** - .NET runtime
+Based on the hardened base images, platform images include (default versions):
+- **Nginx 1.28** - Web server
+- **OpenJDK 21 (LTS)** - Java runtime
+- **Tomcat 11.0** - Java application server
+- **Python 3.13** - Python runtime
+- **Spring Boot 3.5** - Java framework
+- **ASP.NET Core 10.0 (LTS)** - .NET web framework
+- **.NET Runtime 10.0 (LTS)** - .NET runtime
 
 ## Security Features
 

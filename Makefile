@@ -192,45 +192,29 @@ build-all: build-base-images build-platform-images
 .PHONY: push-base-images
 push-base-images: push-all-alpine-versions push-all-debian-versions push-all-redhat-versions
 
-# Push all Alpine LTS versions
+# Push all Alpine LTS versions (pattern rule — version-agnostic)
 .PHONY: push-all-alpine-versions
 push-all-alpine-versions: $(addprefix push-alpine-,$(ALPINE_VERSIONS))
 
-push-alpine-3.18:
-	@echo "📤 Pushing Alpine 3.18 LTS base image to GHCR..."
-	docker push $(REGISTRY)/alpine-hardened:3.18
-
-push-alpine-3.19:
-	@echo "📤 Pushing Alpine 3.19 LTS base image to GHCR..."
-	docker push $(REGISTRY)/alpine-hardened:3.19
-
-push-alpine-3.20:
-	@echo "📤 Pushing Alpine 3.20 LTS base image to GHCR..."
-	docker push $(REGISTRY)/alpine-hardened:3.20
+push-alpine-%:
+	@echo "📤 Pushing Alpine $* hardened base image to GHCR..."
+	docker push $(REGISTRY)/alpine-hardened:$*
 
 # Push all Debian LTS versions
 .PHONY: push-all-debian-versions
 push-all-debian-versions: $(addprefix push-debian-,$(DEBIAN_VERSIONS))
 
-push-debian-11:
-	@echo "📤 Pushing Debian 11 (Bullseye) LTS base image to GHCR..."
-	docker push $(REGISTRY)/debian-hardened:11
-
-push-debian-12:
-	@echo "📤 Pushing Debian 12 (Bookworm) LTS base image to GHCR..."
-	docker push $(REGISTRY)/debian-hardened:12
+push-debian-%:
+	@echo "📤 Pushing Debian $* hardened base image to GHCR..."
+	docker push $(REGISTRY)/debian-hardened:$*
 
 # Push all RedHat LTS versions
 .PHONY: push-all-redhat-versions
 push-all-redhat-versions: $(addprefix push-redhat-,$(REDHAT_VERSIONS))
 
-push-redhat-8:
-	@echo "📤 Pushing RedHat UBI 8 LTS base image to GHCR..."
-	docker push $(REGISTRY)/redhat-hardened:8
-
-push-redhat-9:
-	@echo "📤 Pushing RedHat UBI 9 LTS base image to GHCR..."
-	docker push $(REGISTRY)/redhat-hardened:9
+push-redhat-%:
+	@echo "📤 Pushing RedHat UBI $* hardened base image to GHCR..."
+	docker push $(REGISTRY)/redhat-hardened:$*
 
 # Legacy targets for backward compatibility
 push-base-alpine: push-alpine-$(DEFAULT_ALPINE_VERSION)
@@ -269,13 +253,13 @@ sync-image-to-acr:
 scan-images:
 	@echo "🔍 Scanning images for vulnerabilities..."
 	@if command -v trivy >/dev/null 2>&1; then \
-		for image in $(REGISTRY)/alpine-hardened:3.18 \
-			$(REGISTRY)/alpine-hardened:3.19 \
-			$(REGISTRY)/alpine-hardened:3.20 \
-			$(REGISTRY)/debian-hardened:11 \
+		for image in $(REGISTRY)/alpine-hardened:3.22 \
+			$(REGISTRY)/alpine-hardened:3.23 \
+			$(REGISTRY)/alpine-hardened:3.24 \
 			$(REGISTRY)/debian-hardened:12 \
-			$(REGISTRY)/redhat-hardened:8 \
+			$(REGISTRY)/debian-hardened:13 \
 			$(REGISTRY)/redhat-hardened:9 \
+			$(REGISTRY)/redhat-hardened:10 \
 			$(REGISTRY)/nginx-platform:$(PLATFORM_IMAGE_TAG) \
 			$(REGISTRY)/openjdk-platform:$(PLATFORM_IMAGE_TAG) \
 			$(REGISTRY)/python-platform:$(PLATFORM_IMAGE_TAG) \
