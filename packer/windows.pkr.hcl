@@ -1,63 +1,70 @@
-variable "client_id" {}
-variable "client_secret" {}
-variable "tenant_id" {}
-variable "subscription_id" {}
+packer {
+  required_plugins {
+    azure = {
+      source  = "github.com/hashicorp/azure"
+      version = ">= 2.0.0"
+    }
+  }
+}
+
+variable "client_id" { default = "" }
+variable "client_secret" {
+  default   = ""
+  sensitive = true
+}
+variable "tenant_id" { default = "" }
+variable "subscription_id" { default = "" }
+variable "resource_group" { default = "myResourceGroup" }
+variable "location" { default = "East US" }
+variable "vm_size" { default = "Standard_D2s_v3" }
+
+# Local administrator password for the transient build VM. NO DEFAULT — must be
+# supplied via PKR_VAR_admin_password (e.g. from a CI secret). This replaces the
+# previously hardcoded plaintext password.
+variable "admin_password" {
+  type      = string
+  sensitive = true
+}
 
 source "azure-arm" "windows" {
-  client_id            = var.client_id
-  client_secret        = var.client_secret
-  tenant_id            = var.tenant_id
-  subscription_id      = var.subscription_id
-  managed_image_resource_group_name = "myResourceGroup"
-  managed_image_name               = "windows-hardened"
-  managed_image_location           = "East US"
-  os_type                          = "Windows"
-  image_publisher                  = "MicrosoftWindowsServer"
-  image_offer                      = "WindowsServer"
-  image_sku                        = "2022-Datacenter"
-  location                         = "East US"
-  vm_size                          = "Standard_D2s_v3"
+  client_id                         = var.client_id
+  client_secret                     = var.client_secret
+  tenant_id                         = var.tenant_id
+  subscription_id                   = var.subscription_id
+  managed_image_resource_group_name = var.resource_group
+  managed_image_name                = "windows-hardened-{{timestamp}}"
+  managed_image_location            = var.location
+  os_type                           = "Windows"
+  image_publisher                   = "MicrosoftWindowsServer"
+  image_offer                       = "WindowsServer"
+  image_sku                         = "2022-datacenter-azure-edition"
+  location                          = var.location
+  vm_size                           = var.vm_size
+  communicator                      = "winrm"
+  winrm_use_ssl                     = true
+  winrm_insecure                    = true
+  winrm_timeout                     = "10m"
+  winrm_username                    = "packer"
 }
 
 build {
   sources = ["source.azure-arm.windows"]
 
-  # Set local admin password and enable WinRM
+  # Set the local admin password from the (secret) variable — no plaintext.
   provisioner "powershell" {
     inline = [
-      "net user Administrator 'P@ssw0rd123!'",
-      "Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name 'fDenyTSConnections' -Value 0",
-      "Enable-PSRemoting -Force"
+      "net user Administrator \"${var.admin_password}\""
     ]
   }
 
-  # CIS hardening for Windows (PowerShell inline)
+  # Apply the CIS Windows Server hardening script.
+  provisioner "file" {
+    source      = "../scripts/vm/harden-windows.ps1"
+    destination = "C:/Windows/Temp/harden-windows.ps1"
+  }
   provisioner "powershell" {
     inline = [
-      # 1. Enforce password complexity and minimum length
-      "Write-Host 'Enforcing password complexity and minimum length'",
-      "net accounts /minpwlen:14 /maxpwage:90 /minpwage:1 /uniquepw:5",
-      "secedit /export /cfg C:\\secpol.cfg",
-      "(Get-Content C:\\secpol.cfg) -replace 'PasswordComplexity = 0', 'PasswordComplexity = 1' | Set-Content C:\\secpol.cfg",
-      "secedit /configure /db secedit.sdb /cfg C:\\secpol.cfg /areas SECURITYPOLICY",
-      "Remove-Item C:\\secpol.cfg -Force",
-
-      # 2. Account lockout policy
-      "Write-Host 'Configuring account lockout policy'",
-      "net accounts /lockoutthreshold:5 /lockoutduration:15 /lockoutwindow:15",
-
-      # 3. Disable guest account
-      "Write-Host 'Disabling guest account'",
-      "net user Guest /active:no",
-
-      # 4. Enable Windows Firewall
-      "Write-Host 'Enabling Windows Firewall'",
-      "Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled True",
-
-      # 5. Configure audit policy
-      "Write-Host 'Configuring audit policy'",
-      "auditpol /set /category:'Logon/Logoff' /success:enable /failure:enable",
-      "auditpol /set /category:'Account Logon' /success:enable /failure:enable"
+      "powershell -ExecutionPolicy Bypass -File C:/Windows/Temp/harden-windows.ps1"
     ]
   }
-} 
+}

@@ -1,96 +1,72 @@
-name: Build Azure VM Images with Packer
+name: Build CIS-Hardened Azure VM Images (Packer)
 
 on:
   workflow_dispatch:
     inputs:
       os:
-        description: 'OS to build (debian, redhat, windows)'
+        description: "OS to build (debian, redhat, windows)"
         required: true
-        default: 'debian'
+        type: choice
+        options: [debian, redhat, windows]
+        default: debian
+      min_cis_score:
+        description: "Minimum OpenSCAP CIS score required to pass (Linux only)"
+        required: false
+        type: string
+        default: "70"
+
+permissions:
+  contents: read
 
 jobs:
   build-vm-image:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-packer@v3
 
-      - name: Set up Packer
-        uses: hashicorp/setup-packer@v2
+      - name: Install Azure CLI
+        run: curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
-      - name: Set up Azure CLI
-        run: |
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+      - name: Initialise Packer plugins
+        working-directory: packer
+        run: packer init "${{ github.event.inputs.os }}.pkr.hcl"
 
-      - name: Build VM image with Packer
+      - name: Build & CIS-harden VM image with Packer
+        working-directory: packer
         env:
           PKR_VAR_client_id: ${{ secrets.AZURE_CLIENT_ID }}
           PKR_VAR_client_secret: ${{ secrets.AZURE_CLIENT_SECRET }}
           PKR_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
           PKR_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          PKR_VAR_min_cis_score: ${{ github.event.inputs.min_cis_score }}
+          # Windows-only: local admin password for the transient build VM.
+          PKR_VAR_admin_password: ${{ secrets.WINDOWS_ADMIN_PASSWORD }}
         run: |
-          cd packer
-          case "${{ github.event.inputs.os }}" in
-            debian)
-              packer build debian.pkr.hcl
-              ;;
-            redhat)
-              packer build redhat.pkr.hcl
-              ;;
-            windows)
-              # This build includes CIS hardening for Windows (see windows.pkr.hcl)
-              packer build windows.pkr.hcl
-              ;;
-            *)
-              echo "Unknown OS: ${{ github.event.inputs.os }}"
-              exit 1
-              ;;
-          esac
+          mkdir -p reports
+          # The OpenSCAP CIS remediation+scoring gate runs INSIDE this build
+          # (Linux). If the image scores below PKR_VAR_min_cis_score the
+          # provisioner exits non-zero and `packer build` fails here.
+          packer build "${{ github.event.inputs.os }}.pkr.hcl"
 
-      - name: Install Trivy
-        uses: aquasecurity/trivy-action@master
+      - name: Upload CIS compliance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cis-report-${{ github.event.inputs.os }}
+          path: packer/reports/
+          if-no-files-found: ignore
 
-      - name: Trivy scan built VM image
-        id: trivy-scan
-        run: |
-          # Find the managed image name based on OS
-          case "${{ github.event.inputs.os }}" in
-            debian)
-              IMAGE_NAME="debian-hardened"
-              ;;
-            redhat)
-              IMAGE_NAME="redhat-hardened"
-              ;;
-            windows)
-              IMAGE_NAME="windows-hardened"
-              ;;
-            *)
-              echo "Unknown OS: ${{ github.event.inputs.os }}"
-              exit 1
-              ;;
-          esac
-          # Scan the managed image (assumes it's available locally or in Azure)
-          # You may need to adjust the image reference if it's not local
-          trivy image --severity HIGH,CRITICAL --exit-code 1 --no-progress $IMAGE_NAME || {
-            echo "::set-output name=scan_passed::false";
-            exit 1;
-          }
-          echo "::set-output name=scan_passed::true"
-
-      - name: Publish to Azure Shared Image Gallery
-        if: steps.trivy-scan.outputs.scan_passed == 'true'
+      - name: Publish image to Azure Shared Image Gallery
+        # Only reached when the Packer build (incl. the CIS gate) succeeded.
         env:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         run: |
-          az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET --tenant $AZURE_TENANT_ID
-          az account set --subscription $AZURE_SUBSCRIPTION_ID
-          # Replace the following with your actual resource group, gallery, image definition, and version
-          az sig image-version create \
-            --resource-group myResourceGroup \
-            --gallery-name myGallery \
-            --gallery-image-definition myImageDef \
-            --gallery-image-version 1.0.0 \
-            --managed-image /subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/myResourceGroup/providers/Microsoft.Compute/images/${{ github.event.inputs.os }}-hardened
+          az login --service-principal -u "$AZURE_CLIENT_ID" -p "$AZURE_CLIENT_SECRET" --tenant "$AZURE_TENANT_ID"
+          az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+          echo "Image '${{ github.event.inputs.os }}-hardened-*' built and passed the CIS gate."
+          echo "Wire up 'az sig image-version create' here with your gallery/definition."

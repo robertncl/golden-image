@@ -1,65 +1,80 @@
 # Golden Image Build Configuration
 
-# Base OS Images
+# CIS compliance posture for this build platform
+cis:
+  container_benchmark: "CIS Docker Benchmark v1.7.0"
+  vm_benchmark: "CIS Linux/Windows Benchmarks via OpenSCAP SSG"
+  # Container image gate (hard fail): Dockerfile lint + built-image scan.
+  container_gate:
+    dockerfile_lint: "trivy config (AVD-DS / CIS Docker build checks)"
+    image_scan: "trivy image --scanners vuln,secret,misconfig"
+    severity: "HIGH,CRITICAL"
+  # VM image gate (hard fail): OpenSCAP remediation + scoring.
+  vm_gate:
+    tool: "openscap (scap-security-guide CIS profile)"
+    min_score: 70
+
+# Base OS Images (one CIS-hardened Dockerfile per LTS version)
 base_images:
   alpine:
     version: "3.20"
     base_image: "alpine:3.20"
     package_manager: "apk"
-    hardening_script: "scripts/harden-alpine.sh"
-    
+    hardening_script: "scripts/container/harden-alpine.sh"
+
   debian:
     version: "12"
     base_image: "debian:12-slim"
     package_manager: "apt"
-    hardening_script: "scripts/harden-debian.sh"
-    
+    hardening_script: "scripts/container/harden-debian.sh"
+
   redhat:
     version: "9"
     base_image: "registry.access.redhat.com/ubi9/ubi-minimal:latest"
-    package_manager: "dnf"
-    hardening_script: "scripts/harden-redhat.sh"
+    package_manager: "microdnf"
+    hardening_script: "scripts/container/harden-redhat.sh"
 
-# Platform Images
+# Platform Images — each inherits a hardened base via the BASE_IMAGE build-arg
+# and runs entirely as the non-root appuser (uid 10001).
 platform_images:
   nginx:
-    base: "debian"
-    version: "1.24"
-    ports: ["80", "443"]
-    user: "nginx"
-    
+    base: "alpine"
+    version: "1.26"
+    ports: ["8080"]
+    user: "appuser"
+
+  python:
+    base: "alpine"
+    version: "3.12"
+    user: "appuser"
+
   openjdk:
     base: "debian"
     version: "17"
-    user: "java"
-    
+    user: "appuser"
+
   tomcat:
     base: "openjdk"
     version: "10.1"
     ports: ["8080"]
-    user: "tomcat"
-    
-  python:
-    base: "debian"
-    version: "3.11"
-    user: "python"
-    
+    user: "appuser"
+
   springboot:
     base: "openjdk"
     version: "3.2"
     ports: ["8080"]
-    user: "spring"
-    
+    user: "appuser"
+
   aspnet:
     base: "debian"
     version: "8.0"
-    ports: ["80", "443"]
-    user: "aspnet"
-    
+    ports: ["8080"]
+    user: "appuser"
+
   dotnet:
     base: "debian"
     version: "8.0"
-    user: "dotnet"
+    user: "appuser"
 
 # Build Settings
 build:
@@ -67,11 +82,12 @@ build:
   push: true
   platforms: ["linux/amd64", "linux/arm64"]
   parallel: 4
-  
+
 # Security Settings
 security:
   scan_images: true
   trivy_enabled: true
   cis_compliance: true
   non_root_user: true
-  minimal_packages: true 
+  minimal_packages: true
+  pin_base_by_digest: true

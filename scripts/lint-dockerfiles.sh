@@ -22,11 +22,11 @@ scan_dir() {
   local dir="$1"
   echo -e "${BLUE}🔒 trivy config (CIS Docker build checks) -> ${dir}${NC}"
   if command -v trivy >/dev/null 2>&1; then
-    trivy config --severity "${TRIVY_SEVERITY}" --exit-code 1 --no-progress "${dir}"
+    trivy config --severity "${TRIVY_SEVERITY}" --exit-code 1 "${dir}"
   else
     docker run --rm -v "$(pwd):/work" -w /work \
       "aquasec/trivy:${TRIVY_VERSION:-0.55.0}" config \
-      --severity "${TRIVY_SEVERITY}" --exit-code 1 --no-progress "${dir}"
+      --severity "${TRIVY_SEVERITY}" --exit-code 1 "${dir}"
   fi
 }
 
