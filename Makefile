@@ -95,6 +95,20 @@ build-base-alpine: build-alpine-$(DEFAULT_ALPINE_VERSION)
 build-base-debian: build-debian-$(DEFAULT_DEBIAN_VERSION)
 build-base-redhat: build-redhat-$(DEFAULT_REDHAT_VERSION)
 
+# Pattern rules: build a specific hardened base image for any LTS version.
+# Build context is the repo root so the container hardening scripts are visible.
+build-alpine-%:
+	@echo "🔨 Building hardened Alpine $* base image..."
+	docker build $(BUILD_ARGS) -f base-images/alpine/Dockerfile.$* -t $(REGISTRY)/alpine-hardened:$* .
+
+build-debian-%:
+	@echo "🔨 Building hardened Debian $* base image..."
+	docker build $(BUILD_ARGS) -f base-images/debian/Dockerfile.$* -t $(REGISTRY)/debian-hardened:$* .
+
+build-redhat-%:
+	@echo "🔨 Building hardened RedHat UBI $* base image..."
+	docker build $(BUILD_ARGS) -f base-images/redhat/Dockerfile.$* -t $(REGISTRY)/redhat-hardened:$* .
+
 # Dynamic target generation and validation
 .PHONY: validate-lts-config
 validate-lts-config:
@@ -272,6 +286,19 @@ scan-images:
 	else \
 		echo "Trivy not found. Install it to scan images for vulnerabilities."; \
 	fi
+
+# CIS compliance verification gate (Dockle + Trivy). Fails on any violation.
+# Usage: make cis-verify IMAGE=ghcr.io/<ns>/alpine-hardened:3.20
+.PHONY: cis-verify
+cis-verify:
+	@if [ -z "$(IMAGE)" ]; then echo "❌ Please specify IMAGE=<image:tag>"; exit 1; fi
+	@./scripts/cis-verify.sh $(IMAGE)
+
+# Build every golden image locally on Docker Desktop and CIS-verify them.
+# Pass extra flags via ARGS, e.g. make local-test ARGS="--all-platforms --with-redhat"
+.PHONY: local-test
+local-test:
+	@./scripts/local-build-test.sh $(ARGS)
 
 # Comprehensive security scanning with multiple tools
 .PHONY: scan-comprehensive
