@@ -30,8 +30,28 @@ DOCKLE_EXIT_LEVEL="${DOCKLE_EXIT_LEVEL:-warn}"
 # (cosign/notation), not inside the image, so it is ignored by the image linter.
 DOCKLE_IGNORE="${DOCKLE_IGNORE:-CIS-DI-0005}"
 TRIVY_SEVERITY="${TRIVY_SEVERITY:-HIGH,CRITICAL}"
-DOCKLE_VERSION="${DOCKLE_VERSION:-v0.4.14}"
+# Dockle is used as a STATIC BINARY (not the goodwithtech/dockle container image,
+# which itself carries vulnerabilities). The binary is reused from PATH if
+# present, otherwise downloaded once from the official GitHub release.
+DOCKLE_VERSION="${DOCKLE_VERSION:-0.4.14}"
+DOCKLE_CACHE="${DOCKLE_CACHE:-${TMPDIR:-/tmp}/golden-dockle}"
 TRIVY_VERSION="${TRIVY_VERSION:-0.55.0}"
+
+ensure_dockle() {
+  if command -v dockle >/dev/null 2>&1; then DOCKLE_BIN="dockle"; return 0; fi
+  if [ -x "${DOCKLE_CACHE}/dockle" ]; then DOCKLE_BIN="${DOCKLE_CACHE}/dockle"; return 0; fi
+  local asset
+  case "$(uname -m)" in
+    x86_64|amd64)  asset="Linux-64bit" ;;
+    aarch64|arm64) asset="Linux-ARM64" ;;
+    *) echo "Unsupported arch for Dockle: $(uname -m)" >&2; return 1 ;;
+  esac
+  mkdir -p "${DOCKLE_CACHE}"
+  echo "  (fetching dockle ${DOCKLE_VERSION} static binary — no vulnerable image pulled)"
+  curl -fsSL "https://github.com/goodwithtech/dockle/releases/download/v${DOCKLE_VERSION}/dockle_${DOCKLE_VERSION}_${asset}.tar.gz" \
+    | tar -xz -C "${DOCKLE_CACHE}" dockle
+  DOCKLE_BIN="${DOCKLE_CACHE}/dockle"
+}
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 rc=0
@@ -39,14 +59,8 @@ rc=0
 run_dockle() {
   local image="$1"
   echo -e "${BLUE}🔒 Dockle (CIS-Docker / CIS-DI) -> ${image}${NC}"
-  if command -v dockle >/dev/null 2>&1; then
-    dockle --exit-code 1 --exit-level "${DOCKLE_EXIT_LEVEL}" --ignore "${DOCKLE_IGNORE}" "${image}"
-  else
-    docker run --rm \
-      -v /var/run/docker.sock:/var/run/docker.sock \
-      "goodwithtech/dockle:${DOCKLE_VERSION}" \
-      --exit-code 1 --exit-level "${DOCKLE_EXIT_LEVEL}" --ignore "${DOCKLE_IGNORE}" "${image}"
-  fi
+  ensure_dockle || return 1
+  "${DOCKLE_BIN}" --exit-code 1 --exit-level "${DOCKLE_EXIT_LEVEL}" --ignore "${DOCKLE_IGNORE}" "${image}"
 }
 
 run_trivy() {
