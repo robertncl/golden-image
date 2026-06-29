@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
-# Alpine Linux 3.18 LTS — CIS-hardened base image.
+# RedHat UBI 10 (ubi-minimal) — CIS-hardened base image.
 # Hardened to CIS Docker Benchmark v1.7.0 (section 4) + CIS Docker-Image checks.
 # Base pinned by tag AND digest (CIS 4.2 / 4.5 — trusted, immutable base).
-FROM alpine:3.18@sha256:de0eb0b3f2a47ba1eb89389859a9bd88b28e82f5826b6969ad604979713c2d4f
+FROM registry.access.redhat.com/ubi10/ubi-minimal:latest@sha256:5bc43c1af14ccc8bf73bb0306db13edcae1a30589569e9cdf7db5d4668b3ed24
 
 ARG BUILD_DATE
 ARG VCS_REF
@@ -13,15 +13,16 @@ LABEL maintainer="Golden Image Build System" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.vendor="Golden Image Build System" \
-      org.opencontainers.image.title="Alpine Linux 3.18 CIS-Hardened Base" \
-      org.opencontainers.image.description="Alpine 3.18 base hardened to CIS Docker Benchmark v1.7.0" \
+      org.opencontainers.image.title="RedHat UBI 10 CIS-Hardened Base" \
+      org.opencontainers.image.description="UBI 10 minimal base hardened to CIS Docker Benchmark v1.7.0" \
       org.opencontainers.image.source="https://github.com/your-org/golden-image" \
       org.opencontainers.image.licenses="MIT" \
       io.golden-image.cis.benchmark="CIS Docker Benchmark v1.7.0"
 
-COPY scripts/container/harden-alpine.sh /tmp/harden.sh
-RUN apk update && apk upgrade --no-cache && \
-    apk add --no-cache ca-certificates tini && \
+COPY scripts/container/harden-redhat.sh /tmp/harden.sh
+RUN microdnf -y update && \
+    microdnf -y install ca-certificates shadow-utils && \
+    microdnf clean all && \
     chmod 0755 /tmp/harden.sh && /tmp/harden.sh && \
     rm -f /tmp/harden.sh
 
@@ -31,5 +32,4 @@ USER appuser
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD test -r /etc/os-release || exit 1
 
-ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["/bin/sh"]
+CMD ["/bin/bash"]

@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
-# Alpine Linux 3.19 LTS — CIS-hardened base image.
+# Debian 13 (Trixie) LTS — CIS-hardened base image.
 # Hardened to CIS Docker Benchmark v1.7.0 (section 4) + CIS Docker-Image checks.
 # Base pinned by tag AND digest (CIS 4.2 / 4.5 — trusted, immutable base).
-FROM alpine:3.19@sha256:6baf43584bcb78f2e5847d1de515f23499913ac9f12bdf834811a3145eb11ca1
+FROM debian:13-slim@sha256:28de0877c2189802884ccd20f15ee41c203573bd87bb6b883f5f46362d24c5c2
 
 ARG BUILD_DATE
 ARG VCS_REF
@@ -13,17 +13,21 @@ LABEL maintainer="Golden Image Build System" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.vendor="Golden Image Build System" \
-      org.opencontainers.image.title="Alpine Linux 3.19 CIS-Hardened Base" \
-      org.opencontainers.image.description="Alpine 3.19 base hardened to CIS Docker Benchmark v1.7.0" \
+      org.opencontainers.image.title="Debian 13 (Trixie) CIS-Hardened Base" \
+      org.opencontainers.image.description="Debian 13 base hardened to CIS Docker Benchmark v1.7.0" \
       org.opencontainers.image.source="https://github.com/your-org/golden-image" \
       org.opencontainers.image.licenses="MIT" \
       io.golden-image.cis.benchmark="CIS Docker Benchmark v1.7.0"
 
-COPY scripts/container/harden-alpine.sh /tmp/harden.sh
-RUN apk update && apk upgrade --no-cache && \
-    apk add --no-cache ca-certificates tini && \
+ENV DEBIAN_FRONTEND=noninteractive
+
+COPY scripts/container/harden-debian.sh /tmp/harden.sh
+RUN apt-get update && \
+    apt-get upgrade -y --no-install-recommends && \
+    apt-get install -y --no-install-recommends ca-certificates tini && \
     chmod 0755 /tmp/harden.sh && /tmp/harden.sh && \
-    rm -f /tmp/harden.sh
+    rm -f /tmp/harden.sh && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 USER appuser
@@ -31,5 +35,5 @@ USER appuser
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD test -r /etc/os-release || exit 1
 
-ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["/bin/sh"]
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["/bin/bash"]
