@@ -86,11 +86,12 @@ if [ "${BASE_ONLY}" -eq 0 ]; then
   build_platform python "${ALPINE_BASE}" platform-images/python/Dockerfile
 
   if [ "${ALL_PLATFORMS}" -eq 1 ]; then
-    build_platform openjdk    "${DEBIAN_BASE}" platform-images/openjdk/Dockerfile
+    # All platform images now build on the hardened Alpine base.
+    build_platform openjdk    "${ALPINE_BASE}" platform-images/openjdk/Dockerfile
     build_platform tomcat     "${OPENJDK_IMG}" platform-images/tomcat/Dockerfile
     build_platform springboot "${OPENJDK_IMG}" platform-images/springboot/Dockerfile
-    build_platform aspnet     "${DEBIAN_BASE}" platform-images/aspnet/Dockerfile
-    build_platform dotnet     "${DEBIAN_BASE}" platform-images/dotnet/Dockerfile
+    build_platform aspnet     "${ALPINE_BASE}" platform-images/aspnet/Dockerfile
+    build_platform dotnet     "${ALPINE_BASE}" platform-images/dotnet/Dockerfile
   fi
 fi
 

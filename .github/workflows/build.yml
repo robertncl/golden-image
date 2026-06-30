@@ -151,14 +151,14 @@ jobs:
             base_os: alpine
             base_version: "3.24"
           - platform: openjdk
-            base_os: debian
-            base_version: "13"
+            base_os: alpine
+            base_version: "3.24"
           - platform: aspnet
-            base_os: debian
-            base_version: "13"
+            base_os: alpine
+            base_version: "3.24"
           - platform: dotnet
-            base_os: debian
-            base_version: "13"
+            base_os: alpine
+            base_version: "3.24"
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
