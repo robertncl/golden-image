@@ -166,9 +166,15 @@ make cis-verify IMAGE=ghcr.io/<ns>/alpine-hardened:3.24
 > Trivy provides equivalent CIS-DI coverage. See [docs/CIS-COMPLIANCE.md](docs/CIS-COMPLIANCE.md).
 
 ### Build & verify everything locally on Docker Desktop
+Local builds run through `docker buildx bake` ([docker-bake.hcl](docker-bake.hcl)):
+all images build as **one parallel dependency graph** (bases and independent
+platforms concurrently; tomcat/springboot automatically after openjdk via
+named contexts), with every shared layer built once.
+
 ```bash
 ./scripts/local-build-test.sh                              # bases + nginx/python + CIS gate
-./scripts/local-build-test.sh --all-platforms --with-redhat
+./scripts/local-build-test.sh --all-platforms --with-redhat # all 10 images
+./scripts/local-build-test.sh --print                       # show the resolved build plan
 ```
 
 ## Usage Examples

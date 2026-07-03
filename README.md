@@ -38,6 +38,7 @@ golden-image/
 │   ├── cis-verify.sh     # CIS gate: trivy image (vuln/secret/misconfig)
 │   ├── lint-dockerfiles.sh  # CIS gate: trivy config (Dockerfile build checks)
 │   └── local-build-test.sh  # Build + CIS-verify everything on Docker Desktop
+├── docker-bake.hcl      # Buildx bake graph: parallel local builds w/ shared cache
 ├── packer/              # CIS-hardened Azure/Linux VM image builds
 ├── configs/             # Configuration files
 ├── docs/CIS-COMPLIANCE.md   # Control-by-control CIS mapping
