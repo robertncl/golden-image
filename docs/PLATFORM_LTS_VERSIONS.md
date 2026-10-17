@@ -4,34 +4,35 @@ This document describes the Long Term Support (LTS) versions of platform softwar
 
 ## Supported Platform LTS Versions
 
+Source of truth: `configs/platform-lts-versions.env` (updated 2026-10-17).
+
 ### Nginx
-- **1.24** - Released April 2023, supported until April 2026
-- **1.25** - Released May 2024, supported until May 2027
+- **1.28** - Stable, released April 2025 (superseded by 1.30)
+- **1.30** - Stable, released April 2026 (default)
 
 ### OpenJDK
-- **11** - Released September 2018, supported until September 2026
-- **17** - Released September 2021, supported until September 2029
-- **21** - Released September 2023, supported until September 2031
+- **21** - LTS, released September 2023, supported until September 2031
+- **25** - LTS, released September 2025, supported until September 2033 (default)
 
 ### Tomcat
-- **9.0** - Released January 2018, supported until January 2024
-- **10.1** - Released January 2022, supported until January 2027
+- **10.1** - Released January 2022 (Jakarta EE 10, Java 11+)
+- **11.0** - Released 2024 (Jakarta EE 11, Java 17+) (default)
 
 ### Python
-- **3.11** - Released October 2022, supported until October 2027
-- **3.12** - Released October 2023, supported until October 2028
+- **3.13** - Released October 2024, supported until October 2029
+- **3.14** - Released October 2025, supported until October 2030 (default)
 
 ### Spring Boot
-- **2.7** - Released May 2022, supported until August 2025
-- **3.2** - Released November 2023, supported until February 2027
+- **4.0** - Released November 2025
+- **4.1** - Released June 2026 (default)
 
 ### ASP.NET Core
-- **6.0** - Released November 2021, supported until November 2024
-- **8.0** - Released November 2023, supported until November 2026
+- **9.0** - STS, released November 2024, end of support November 10, 2026
+- **10.0** - LTS, released November 2025, supported until November 2028 (default)
 
 ### .NET Runtime
-- **6.0** - Released November 2021, supported until November 2024
-- **8.0** - Released November 2023, supported until November 2026
+- **9.0** - STS, released November 2024, end of support November 10, 2026
+- **10.0** - LTS, released November 2025, supported until November 2028 (default)
 
 ## Building Specific Platform LTS Versions
 
@@ -216,34 +217,8 @@ The workflow generates a matrix that includes:
 
 ## Support Timeline
 
-### Nginx
-- 1.24: Supported until April 2026
-- 1.25: Supported until May 2027
-
-### OpenJDK
-- 11: Supported until September 2026
-- 17: Supported until September 2029
-- 21: Supported until September 2031
-
-### Tomcat
-- 9.0: Supported until January 2024
-- 10.1: Supported until January 2027
-
-### Python
-- 3.11: Supported until October 2027
-- 3.12: Supported until October 2028
-
-### Spring Boot
-- 2.7: Supported until August 2025
-- 3.2: Supported until February 2027
-
-### ASP.NET Core
-- 6.0: Supported until November 2024
-- 8.0: Supported until November 2026
-
-### .NET Runtime
-- 6.0: Supported until November 2024
-- 8.0: Supported until November 2026
+See [Supported Platform LTS Versions](#supported-platform-lts-versions) above;
+end-of-support dates are listed there where the upstream project publishes one.
 
 ## Best Practices
 

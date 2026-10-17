@@ -7,7 +7,7 @@ FROM ${BASE_IMAGE}
 ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION=1.0.0
-ARG NGINX_VERSION=1.28
+ARG NGINX_VERSION=1.30
 
 LABEL maintainer="Golden Image Build System" \
       org.opencontainers.image.created="${BUILD_DATE}" \
@@ -24,6 +24,8 @@ USER root
 
 # Install nginx + curl (curl is needed by the HEALTHCHECK), patch, prepare
 # writable runtime dirs owned by the non-root appuser, then re-harden.
+# /etc/nginx stays root-owned: the worker never needs to write its own config,
+# and a compromised worker must not be able to rewrite it.
 COPY configs/nginx.conf /etc/nginx/nginx.conf
 COPY configs/default.conf /etc/nginx/conf.d/default.conf
 COPY scripts/container/harden-runtime.sh /tmp/harden-runtime.sh
@@ -31,7 +33,8 @@ RUN apk update && apk upgrade --no-cache && \
     apk add --no-cache nginx curl && \
     mkdir -p /etc/nginx/conf.d /var/lib/nginx /var/log/nginx && \
     rm -f /etc/nginx/http.d/default.conf && \
-    chown -R appuser:appuser /etc/nginx /var/lib/nginx /var/log/nginx /app && \
+    chown -R root:root /etc/nginx && chmod -R go-w /etc/nginx && \
+    chown -R appuser:appuser /var/lib/nginx /var/log/nginx /app && \
     sh /tmp/harden-runtime.sh && rm -f /tmp/harden-runtime.sh
 
 USER appuser

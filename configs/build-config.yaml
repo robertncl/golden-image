@@ -39,18 +39,18 @@ base_images:
 platform_images:
   nginx:
     base: "alpine"
-    version: "1.28"
+    version: "1.30"
     ports: ["8080"]
     user: "appuser"
 
   python:
     base: "alpine"
-    version: "3.13"
+    version: "3.14"
     user: "appuser"
 
   openjdk:
     base: "alpine"
-    version: "21"
+    version: "25"
     user: "appuser"
 
   tomcat:
@@ -61,7 +61,7 @@ platform_images:
 
   springboot:
     base: "openjdk"
-    version: "3.5"
+    version: "4.1"
     ports: ["8080"]
     user: "appuser"
 

@@ -106,13 +106,9 @@ az acr update -n myacr --admin-enabled true
 
 Install Trivy for vulnerability scanning:
 
-**Ubuntu/Debian:**
+**Linux (amd64/arm64):** use the same pinned, checksum-verified release CI uses:
 ```bash
-sudo apt-get install wget apt-transport-https gnupg lsb-release
-wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
-echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | sudo tee -a /etc/apt/sources.list.d/trivy.list
-sudo apt-get update
-sudo apt-get install trivy
+./scripts/install-trivy.sh            # installs to /usr/local/bin (uses sudo if needed)
 ```
 
 **macOS:**
@@ -135,11 +131,11 @@ The system builds hardened base images for (default = latest):
 
 ### Platform Images
 Based on the hardened base images, platform images include (default versions):
-- **Nginx 1.28** - Web server
-- **OpenJDK 21 (LTS)** - Java runtime
+- **Nginx 1.30** - Web server
+- **OpenJDK 25 (LTS)** - Java runtime
 - **Tomcat 11.0** - Java application server
-- **Python 3.13** - Python runtime
-- **Spring Boot 3.5** - Java framework
+- **Python 3.14** - Python runtime
+- **Spring Boot 4.1** - Java framework
 - **ASP.NET Core 10.0 (LTS)** - .NET web framework
 - **.NET Runtime 10.0 (LTS)** - .NET runtime
 

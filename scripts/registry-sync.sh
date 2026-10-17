@@ -11,10 +11,20 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Load configurations
-source configs/ghcr-config.env
-source configs/acr-config.env
-source configs/lts-versions.env
+# Load configurations as defaults only: values already in the environment (e.g.
+# CI secrets) win over the placeholder credentials in configs/*.env. The files
+# are parsed as KEY=VALUE data rather than executed with `source`.
+load_config() {
+    local key value
+    while IFS='=' read -r key value; do
+        [[ $key =~ ^[A-Z_][A-Z0-9_]*$ ]] || continue
+        value="${value%\"}"; value="${value#\"}"
+        [ -n "${!key:-}" ] || export "$key=$value"
+    done < "$1"
+}
+load_config configs/ghcr-config.env
+load_config configs/acr-config.env
+load_config configs/lts-versions.env
 
 echo "🔄 Starting registry sync from GHCR to ACR..."
 
@@ -53,7 +63,7 @@ login_to_registries() {
     # Login to Azure Container Registry
     if [ -n "$ACR_USERNAME" ] && [ -n "$ACR_PASSWORD" ]; then
         echo "Logging into Azure Container Registry..."
-        docker login "$ACR_LOGIN_SERVER" -u "$ACR_USERNAME" -p "$ACR_PASSWORD"
+        echo "$ACR_PASSWORD" | docker login "$ACR_LOGIN_SERVER" -u "$ACR_USERNAME" --password-stdin
     else
         echo -e "${RED}❌ ACR credentials not configured${NC}"
         exit 1

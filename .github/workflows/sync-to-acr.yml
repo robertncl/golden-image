@@ -18,9 +18,20 @@ on:
         type: string
         default: 'latest'
 
+permissions:
+  contents: read
+  packages: read
+
 env:
   GHCR_REGISTRY: ghcr.io
   GHCR_NAMESPACE: ${{ github.repository_owner }}
+  # Secrets and free-text dispatch inputs reach the scripts through env only —
+  # never `${{ }}`-interpolated into run: blocks (prevents shell injection).
+  ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+  ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+  ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+  BASE_IMAGE_TAG: latest
+  PLATFORM_IMAGE_TAG: latest
 
 jobs:
   # Sync all images to ACR
@@ -51,15 +62,6 @@ jobs:
 
     - name: Sync all images to ACR
       run: |
-        # Set environment variables for the sync script
-        export GHCR_REGISTRY=${{ env.GHCR_REGISTRY }}
-        export GHCR_NAMESPACE=${{ env.GHCR_NAMESPACE }}
-        export ACR_LOGIN_SERVER=${{ secrets.ACR_LOGIN_SERVER }}
-        export ACR_USERNAME=${{ secrets.ACR_USERNAME }}
-        export ACR_PASSWORD=${{ secrets.ACR_PASSWORD }}
-        export BASE_IMAGE_TAG=latest
-        export PLATFORM_IMAGE_TAG=latest
-        
         # Run the sync script
         ./scripts/registry-sync.sh sync-all
 
@@ -98,18 +100,12 @@ jobs:
         password: ${{ secrets.ACR_PASSWORD }}
 
     - name: Sync specific image to ACR
+      env:
+        IMAGE_NAME: ${{ github.event.inputs.image_name }}
+        IMAGE_TAG: ${{ github.event.inputs.image_tag }}
       run: |
-        # Set environment variables for the sync script
-        export GHCR_REGISTRY=${{ env.GHCR_REGISTRY }}
-        export GHCR_NAMESPACE=${{ env.GHCR_NAMESPACE }}
-        export ACR_LOGIN_SERVER=${{ secrets.ACR_LOGIN_SERVER }}
-        export ACR_USERNAME=${{ secrets.ACR_USERNAME }}
-        export ACR_PASSWORD=${{ secrets.ACR_PASSWORD }}
-        export BASE_IMAGE_TAG=latest
-        export PLATFORM_IMAGE_TAG=latest
-        
         # Run the sync script for specific image
-        ./scripts/registry-sync.sh sync-image ${{ github.event.inputs.image_name }} ${{ github.event.inputs.image_tag }}
+        ./scripts/registry-sync.sh sync-image "${IMAGE_NAME}" "${IMAGE_TAG}"
 
   # Check sync status
   check-sync-status:
@@ -139,15 +135,6 @@ jobs:
 
     - name: Check sync status
       run: |
-        # Set environment variables for the sync script
-        export GHCR_REGISTRY=${{ env.GHCR_REGISTRY }}
-        export GHCR_NAMESPACE=${{ env.GHCR_NAMESPACE }}
-        export ACR_LOGIN_SERVER=${{ secrets.ACR_LOGIN_SERVER }}
-        export ACR_USERNAME=${{ secrets.ACR_USERNAME }}
-        export ACR_PASSWORD=${{ secrets.ACR_PASSWORD }}
-        export BASE_IMAGE_TAG=latest
-        export PLATFORM_IMAGE_TAG=latest
-        
         # Check sync status
         ./scripts/registry-sync.sh status
 
@@ -159,15 +146,19 @@ jobs:
     
     steps:
     - name: Notify sync completion
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        IMAGE_NAME: ${{ github.event.inputs.image_name }}
+        IMAGE_TAG: ${{ github.event.inputs.image_tag }}
       run: |
         echo "✅ Image sync to ACR completed successfully!"
         echo "📊 Sync Summary:"
         echo "  - Source: GitHub Container Registry"
         echo "  - Destination: Azure Container Registry"
-        echo "  - Triggered by: ${{ github.event_name }}"
+        echo "  - Triggered by: ${EVENT_NAME}"
         
-        if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ github.event.inputs.image_name }}" ]; then
-          echo "  - Synced image: ${{ github.event.inputs.image_name }}:${{ github.event.inputs.image_tag }}"
+        if [ "${EVENT_NAME}" == "workflow_dispatch" ] && [ -n "${IMAGE_NAME}" ]; then
+          echo "  - Synced image: ${IMAGE_NAME}:${IMAGE_TAG}"
         else
           echo "  - Synced all images"
         fi 

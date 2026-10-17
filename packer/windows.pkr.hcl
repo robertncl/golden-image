@@ -2,7 +2,7 @@ packer {
   required_plugins {
     azure = {
       source  = "github.com/hashicorp/azure"
-      version = ">= 2.0.0"
+      version = ">= 2.6.4, < 3.0.0"
     }
   }
 }
@@ -65,6 +65,18 @@ build {
   provisioner "powershell" {
     inline = [
       "powershell -ExecutionPolicy Bypass -File C:/Windows/Temp/harden-windows.ps1"
+    ]
+  }
+
+  # Sysprep-generalize before capture (required by Azure): strips the build-time
+  # accounts/credentials and machine SID so they are not baked into every VM
+  # deployed from this image. Must be the LAST provisioner.
+  provisioner "powershell" {
+    inline = [
+      "while ((Get-Service RdAgent).Status -ne 'Running') { Start-Sleep -s 5 }",
+      "while ((Get-Service WindowsAzureGuestAgent).Status -ne 'Running') { Start-Sleep -s 5 }",
+      "& $env:SystemRoot\\System32\\Sysprep\\Sysprep.exe /oobe /generalize /quiet /quit /mode:vm",
+      "while ($true) { $s = (Get-ItemProperty HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Setup\\State).ImageState; if ($s -ne 'IMAGE_STATE_GENERALIZE_RESEAL_TO_OOBE') { Write-Output $s; Start-Sleep -s 10 } else { break } }"
     ]
   }
 }

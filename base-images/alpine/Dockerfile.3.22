@@ -2,7 +2,7 @@
 # Alpine Linux 3.22 LTS — CIS-hardened base image.
 # Hardened to CIS Docker Benchmark v1.7.0 (section 4) + CIS Docker-Image checks.
 # Base pinned by tag AND digest (CIS 4.2 / 4.5 — trusted, immutable base).
-FROM alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce
+FROM alpine:3.22@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8
 
 ARG BUILD_DATE
 ARG VCS_REF

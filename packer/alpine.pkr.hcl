@@ -2,7 +2,7 @@ packer {
   required_plugins {
     qemu = {
       source  = "github.com/hashicorp/qemu"
-      version = ">= 1.1.0"
+      version = ">= 1.1.7, < 2.0.0"
     }
   }
 }
@@ -17,10 +17,11 @@ packer {
 # hardening-ready skeleton.
 
 variable "iso_url" {
-  default = "https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-virt-3.20.3-x86_64.iso"
+  default = "https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/x86_64/alpine-virt-3.24.2-x86_64.iso"
 }
 variable "iso_checksum" {
-  default = "file:https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-virt-3.20.3-x86_64.iso.sha256"
+  # Pinned (not fetched from the same server as the ISO). Bump with iso_url.
+  default = "sha256:3ab424762af704b2c2a9e57df1dc37f982af260071504d977f2fb96822e7130b"
 }
 variable "output_dir" { default = "output-alpine" }
 # Transient credential for the throwaway build VM only — never baked into the

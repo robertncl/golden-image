@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Base image testing
   alpine-test:
@@ -95,14 +93,14 @@ services:
 
   # Security scanning
   trivy-scanner:
-    image: aquasec/trivy:latest
+    image: aquasec/trivy:0.76.0@sha256:2416d1f74045b57274df1a340eee6b510cacd73c66a6ccb8da092b117eb7d222
     container_name: trivy-scanner
     command: ["image", "--severity", "HIGH,CRITICAL", "${ACR_LOGIN_SERVER:-localhost}/debian-hardened:latest"]
     profiles: ["security"]
 
   # Build environment
   build-env:
-    image: docker:latest
+    image: docker:29.9.1-cli
     container_name: build-env
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock

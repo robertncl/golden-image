@@ -55,7 +55,7 @@ validate_acr_config() {
 login_to_acr() {
     echo -e "${BLUE}🔐 Logging into Azure Container Registry...${NC}"
     
-    if docker login $ACR_LOGIN_SERVER -u $ACR_USERNAME -p $ACR_PASSWORD; then
+    if echo "$ACR_PASSWORD" | docker login "$ACR_LOGIN_SERVER" -u "$ACR_USERNAME" --password-stdin; then
         echo -e "${GREEN}✅ Successfully logged into ACR${NC}"
     else
         echo -e "${RED}❌ Failed to login to ACR${NC}"

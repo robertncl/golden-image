@@ -25,7 +25,7 @@ scan_dir() {
     trivy config --severity "${TRIVY_SEVERITY}" --exit-code 1 "${dir}"
   else
     docker run --rm -v "$(pwd):/work" -w /work \
-      "aquasec/trivy:${TRIVY_VERSION:-0.55.0}" config \
+      "aquasec/trivy:${TRIVY_VERSION:-0.76.0}" config \
       --severity "${TRIVY_SEVERITY}" --exit-code 1 "${dir}"
   fi
 }

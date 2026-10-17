@@ -37,6 +37,9 @@ env:
   GHCR_REGISTRY: ghcr.io
   REGISTRY: ghcr.io/${{ github.repository_owner }}
   IMAGE_TAG: ${{ github.sha }}
+  # Free-text dispatch input: passed via env (never `${{ }}`-interpolated into
+  # run: scripts) so it cannot inject shell commands.
+  PLATFORMS: ${{ inputs.platforms }}
   # CIS gate thresholds (consumed by scripts/cis-verify.sh)
   DOCKLE_EXIT_LEVEL: warn
   TRIVY_SEVERITY: HIGH,CRITICAL
@@ -52,7 +55,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install Trivy
-        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+        run: ./scripts/install-trivy.sh
       - name: Lint Dockerfiles (CIS Docker build checks)
         run: ./scripts/lint-dockerfiles.sh
 
@@ -89,7 +92,7 @@ jobs:
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Install Trivy
-        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+        run: ./scripts/install-trivy.sh
       - name: Build base image (amd64, loaded) for the CIS gate
         run: |
           docker buildx build --load \
@@ -118,7 +121,7 @@ jobs:
             EXTRA="-t ${REGISTRY}/${{ matrix.os }}-hardened:latest"
           fi
           docker buildx build --push \
-            --platform "${{ inputs.platforms }}" \
+            --platform "${PLATFORMS}" \
             --provenance=true --sbom=true \
             --build-arg BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
             --build-arg VCS_REF="${IMAGE_TAG}" \
@@ -164,7 +167,7 @@ jobs:
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Install Trivy
-        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+        run: ./scripts/install-trivy.sh
       - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
@@ -192,7 +195,7 @@ jobs:
             EXTRA="-t ${REGISTRY}/${{ matrix.platform }}-platform:latest"
           fi
           docker buildx build --push \
-            --platform "${{ inputs.platforms }}" \
+            --platform "${PLATFORMS}" \
             --provenance=true --sbom=true \
             --build-arg BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
             --build-arg VCS_REF="${IMAGE_TAG}" \
@@ -223,7 +226,7 @@ jobs:
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Install Trivy
-        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+        run: ./scripts/install-trivy.sh
       - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
@@ -247,7 +250,7 @@ jobs:
       - name: Build & push JVM platform image (multi-arch) — only after passing the gate
         run: |
           docker buildx build --push \
-            --platform "${{ inputs.platforms }}" \
+            --platform "${PLATFORMS}" \
             --provenance=true --sbom=true \
             --build-arg BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
             --build-arg VCS_REF="${IMAGE_TAG}" \
@@ -269,7 +272,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install Trivy
-        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+        run: ./scripts/install-trivy.sh
       - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
@@ -284,7 +287,7 @@ jobs:
             trivy image --severity HIGH,CRITICAL --format sarif \
               --output "trivy-$(basename "$image" | tr ':/' '--').sarif" "$ref" || true
           done
-      - uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+      - uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
         if: always()
         with:
           sarif_file: '.'
