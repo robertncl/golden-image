@@ -25,16 +25,26 @@ for mod in cramfs freevxfs jffs2 hfs hfsplus squashfs udf usb-storage dccp sctp 
 done
 
 echo "[vm-harden-alpine] SSH daemon hardening  [CIS 5.2]"
+# sshd keeps the FIRST value it reads, so these must come before anything else:
+# an early-sorting drop-in when sshd_config includes sshd_config.d, otherwise
+# prepended to sshd_config (appending would let earlier lines win).
 if [ -f /etc/ssh/sshd_config ]; then
-  {
-    echo "PermitRootLogin no"
-    echo "PasswordAuthentication no"
-    echo "PermitEmptyPasswords no"
-    echo "X11Forwarding no"
-    echo "MaxAuthTries 4"
-    echo "ClientAliveInterval 300"
-    echo "ClientAliveCountMax 0"
-  } >> /etc/ssh/sshd_config
+  CIS_SSHD="PermitRootLogin no
+PasswordAuthentication no
+PermitEmptyPasswords no
+X11Forwarding no
+MaxAuthTries 4
+ClientAliveInterval 300
+ClientAliveCountMax 0"
+  if grep -qE '^[[:space:]]*Include[[:space:]]+/etc/ssh/sshd_config\.d/' /etc/ssh/sshd_config; then
+    install -d -m 0700 /etc/ssh/sshd_config.d
+    printf '%s\n' "${CIS_SSHD}" > /etc/ssh/sshd_config.d/00-cis.conf
+    chmod 0600 /etc/ssh/sshd_config.d/00-cis.conf
+  else
+    { printf '%s\n' "${CIS_SSHD}"; cat /etc/ssh/sshd_config; } > /etc/ssh/sshd_config.new
+    chmod 0600 /etc/ssh/sshd_config.new
+    mv /etc/ssh/sshd_config.new /etc/ssh/sshd_config
+  fi
 fi
 
 echo "[vm-harden-alpine] Kernel network/sysctl hardening  [CIS 3.x]"
@@ -52,14 +62,24 @@ fs.suid_dumpable = 0
 EOF
 sysctl -p /etc/sysctl.d/99-cis-hardening.conf >/dev/null 2>&1 || true
 
-echo "[vm-harden-alpine] Default-deny firewall (iptables)  [CIS 4.x]"
-iptables -P INPUT DROP   2>/dev/null || true
-iptables -P FORWARD DROP 2>/dev/null || true
-iptables -P OUTPUT ACCEPT 2>/dev/null || true
-iptables -A INPUT -i lo -j ACCEPT 2>/dev/null || true
-iptables -A INPUT -p tcp --dport 22 -j ACCEPT 2>/dev/null || true
-iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || true
-rc-update add iptables default 2>/dev/null || true
+echo "[vm-harden-alpine] Default-deny firewall (iptables + ip6tables)  [CIS 4.x]"
+# Allow rules first, then the DROP policy, so the live SSH session survives.
+for ipt in iptables ip6tables; do
+  $ipt -A INPUT -i lo -j ACCEPT 2>/dev/null || true
+  $ipt -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || true
+  $ipt -A INPUT -p tcp --dport 22 -j ACCEPT 2>/dev/null || true
+  $ipt -P INPUT DROP   2>/dev/null || true
+  $ipt -P FORWARD DROP 2>/dev/null || true
+  $ipt -P OUTPUT ACCEPT 2>/dev/null || true
+done
+# ICMPv6 neighbour discovery is required for IPv6 to function at all.
+ip6tables -I INPUT 2 -p ipv6-icmp -j ACCEPT 2>/dev/null || true
+# Persist the rules: the OpenRC services restore /etc/iptables/rules{,6}-save at
+# boot, so without a save the image boots with an empty, allow-all ruleset.
+/etc/init.d/iptables save
+/etc/init.d/ip6tables save
+rc-update add iptables default
+rc-update add ip6tables default
 
 echo "[vm-harden-alpine] Enable auditing  [CIS 4.1]"
 rc-update add auditd default 2>/dev/null || true

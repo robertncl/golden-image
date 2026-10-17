@@ -333,7 +333,7 @@ login-ghcr:
 .PHONY: login-acr
 login-acr:
 	@echo "🔐 Logging into Azure Container Registry..."
-	docker login $(ACR_LOGIN_SERVER) -u $(ACR_USERNAME) -p $(ACR_PASSWORD)
+	@echo "$(ACR_PASSWORD)" | docker login $(ACR_LOGIN_SERVER) -u $(ACR_USERNAME) --password-stdin
 
 # Complete build and push workflow
 .PHONY: deploy

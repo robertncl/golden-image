@@ -11,6 +11,12 @@
 set -uo pipefail
 
 MIN_SCORE="${MIN_SCORE:-70}"
+# MIN_SCORE arrives from a free-text workflow input; reject anything that is not
+# a plain number so it can never be interpreted as code by awk/the shell.
+if ! [[ "${MIN_SCORE}" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+  echo "[openscap] Invalid MIN_SCORE '${MIN_SCORE}' (expected a number 0-100)." >&2
+  exit 2
+fi
 REPORT_DIR="${REPORT_DIR:-/var/log/openscap}"
 mkdir -p "${REPORT_DIR}"
 
@@ -76,8 +82,8 @@ SCORE="$(grep -oE 'score system="[^"]*">[0-9.]+' "${REPORT_DIR}/cis-arf.xml" 2>/
 SCORE="${SCORE:-0}"
 echo "[openscap] CIS compliance score: ${SCORE} (minimum required: ${MIN_SCORE})"
 
-# Numeric comparison without bc.
-if awk "BEGIN{exit !(${SCORE} >= ${MIN_SCORE})}"; then
+# Numeric comparison without bc; values passed as data (-v), not program text.
+if awk -v s="${SCORE}" -v m="${MIN_SCORE}" 'BEGIN{exit !((s + 0) >= (m + 0))}'; then
   echo "[openscap] PASS — VM image meets the CIS compliance threshold."
   exit 0
 else

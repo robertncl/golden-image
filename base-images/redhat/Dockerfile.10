@@ -2,7 +2,7 @@
 # RedHat UBI 10 (ubi-minimal) — CIS-hardened base image.
 # Hardened to CIS Docker Benchmark v1.7.0 (section 4) + CIS Docker-Image checks.
 # Base pinned by tag AND digest (CIS 4.2 / 4.5 — trusted, immutable base).
-FROM registry.access.redhat.com/ubi10/ubi-minimal:latest@sha256:5bc43c1af14ccc8bf73bb0306db13edcae1a30589569e9cdf7db5d4668b3ed24
+FROM registry.access.redhat.com/ubi10/ubi-minimal:latest@sha256:552f8cc1ddb0bc9e411065c78499aa4dbc2c4ea9bd057aa0e6e44940db13acb5
 
 ARG BUILD_DATE
 ARG VCS_REF

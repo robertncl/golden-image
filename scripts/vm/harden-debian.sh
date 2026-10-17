@@ -36,9 +36,11 @@ for mod in cramfs freevxfs jffs2 hfs hfsplus squashfs udf usb-storage dccp sctp 
 done
 
 echo "[vm-harden-debian] SSH daemon hardening  [CIS 5.2]"
+# sshd keeps the FIRST value it reads and loads drop-ins alphabetically, so this
+# must sort before e.g. 50-cloud-init.conf or its settings are ignored.
 if [ -f /etc/ssh/sshd_config ]; then
   install -d -m 0700 /etc/ssh/sshd_config.d 2>/dev/null || true
-  cat > /etc/ssh/sshd_config.d/99-cis.conf <<'EOF'
+  cat > /etc/ssh/sshd_config.d/00-cis.conf <<'EOF'
 PermitRootLogin no
 PasswordAuthentication no
 PermitEmptyPasswords no
@@ -51,7 +53,7 @@ Banner /etc/issue.net
 Ciphers aes256-gcm@openssh.com,chacha20-poly1305@openssh.com,aes256-ctr
 MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com
 EOF
-  chmod 0600 /etc/ssh/sshd_config.d/99-cis.conf
+  chmod 0600 /etc/ssh/sshd_config.d/00-cis.conf
 fi
 
 echo "[vm-harden-debian] Kernel network/sysctl hardening  [CIS 3.x / 1.5]"

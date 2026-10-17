@@ -2,7 +2,7 @@ packer {
   required_plugins {
     azure = {
       source  = "github.com/hashicorp/azure"
-      version = ">= 2.0.0"
+      version = ">= 2.6.4, < 3.0.0"
     }
   }
 }
@@ -17,7 +17,16 @@ variable "subscription_id" { default = "" }
 variable "resource_group" { default = "myResourceGroup" }
 variable "location" { default = "East US" }
 variable "vm_size" { default = "Standard_D2s_v3" }
-variable "min_cis_score" { default = "70" }
+# Minimum OpenSCAP CIS compliance score required for the build to succeed.
+# Validated as a plain number: it is interpolated into a provisioner command.
+variable "min_cis_score" {
+  type    = string
+  default = "70"
+  validation {
+    condition     = can(regex("^[0-9]{1,3}(\\.[0-9]+)?$", var.min_cis_score))
+    error_message = "The min_cis_score value must be a number between 0 and 100."
+  }
+}
 
 source "azure-arm" "redhat" {
   client_id                         = var.client_id
@@ -56,5 +65,14 @@ build {
     direction   = "download"
     source      = "/var/log/openscap/cis-report.html"
     destination = "reports/redhat-cis-report.html"
+  }
+
+  # Generalize the VM before capture (required by Azure): removes the Packer
+  # build user, its SSH key, host keys and shell history so they are not baked
+  # into every VM deployed from this image. Must be the LAST provisioner.
+  provisioner "shell" {
+    execute_command = "chmod +x {{ .Path }}; {{ .Vars }} sudo -E sh '{{ .Path }}'"
+    inline          = ["/usr/sbin/waagent -force -deprovision+user && export HISTSIZE=0 && sync"]
+    inline_shebang  = "/bin/sh -x"
   }
 }

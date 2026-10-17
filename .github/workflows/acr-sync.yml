@@ -10,6 +10,10 @@ on:
   # schedule:
   #   - cron: '0 2 * * *'  # Daily at 2 AM UTC
 
+permissions:
+  contents: read
+  packages: read
+
 env:
   GHCR_REGISTRY: ghcr.io
   ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
@@ -41,7 +45,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install Trivy
-        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+        run: ./scripts/install-trivy.sh
       - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:

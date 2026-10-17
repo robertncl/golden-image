@@ -7,7 +7,7 @@ FROM ${BASE_IMAGE}
 ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION=1.0.0
-ARG OPENJDK_VERSION=21
+ARG OPENJDK_VERSION=25
 
 LABEL maintainer="Golden Image Build System" \
       org.opencontainers.image.created="${BUILD_DATE}" \
