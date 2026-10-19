@@ -103,12 +103,13 @@ make scan-comprehensive
 
 All LTS versions are synced from GHCR to ACR:
 
-```bash
-# Sync all LTS versions
-make sync-to-acr
+CI promotes every published tag to ACR automatically when the repo is wired to
+Azure (see [BUILD-AND-DEPLOY.md](BUILD-AND-DEPLOY.md)). To copy tags by hand
+(registry-to-registry, every architecture + attestations):
 
-# Check sync status
-./scripts/registry-sync.sh status
+```bash
+az acr login --name <acr>
+make promote-acr ACR=<acr> IMAGES="ghcr.io/<owner>/alpine-hardened:3.24"
 ```
 
 ## Platform Images

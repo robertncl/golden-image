@@ -13,7 +13,7 @@ This system creates golden images by:
 2. Hardening each image to the **CIS Docker Benchmark v1.7.0** at build time (non-root `appuser` uid 10001, setuid/setgid stripped, caches purged, locked system accounts) via `scripts/container/harden-*.sh`
 3. Updating all packages to latest patched versions
 4. **CIS-verifying** every image with a hard-fail gate (`trivy config` for Dockerfile build checks + `trivy image` for vulns/secrets/misconfig) *before* it is pushed
-5. Uploading hardened images to GitHub Container Registry (GHCR), then building platform images (nginx, OpenJDK, Tomcat, Python, Spring Boot, ASP.NET, .NET) on the hardened bases
+5. Building platform images (nginx, OpenJDK, Tomcat, Python, Spring Boot, ASP.NET, .NET) on the hardened Alpine base in the same build graph, smoke-testing every image, and publishing multi-arch (amd64 + arm64) images with provenance and SBOM to GitHub Container Registry (GHCR)
 6. Optionally syncing to Azure Container Registry (ACR), and building CIS-hardened VM images with Packer + OpenSCAP
 
 ## Architecture
@@ -37,8 +37,10 @@ golden-image/
 │   ├── vm/               # Host hardening + OpenSCAP for Packer VM images
 │   ├── cis-verify.sh     # CIS gate: trivy image (vuln/secret/misconfig)
 │   ├── lint-dockerfiles.sh  # CIS gate: trivy config (Dockerfile build checks)
-│   └── local-build-test.sh  # Build + CIS-verify everything on Docker Desktop
-├── docker-bake.hcl      # Buildx bake graph: parallel local builds w/ shared cache
+│   ├── smoke-test.sh     # Functional checks (non-root, healthchecks, runtimes)
+│   ├── deploy/           # One-time GitHub + Azure (OIDC) setup
+│   └── local-build-test.sh  # Build + smoke-test + CIS-verify everything on Docker Desktop
+├── docker-bake.hcl      # THE build graph (local + CI): every image, one parallel build
 ├── packer/              # CIS-hardened Azure/Linux VM image builds
 ├── configs/             # Configuration files
 ├── docs/CIS-COMPLIANCE.md   # Control-by-control CIS mapping
@@ -58,37 +60,37 @@ golden-image/
 
 ## Quick Start
 
-1. Configure your GHCR credentials in `configs/ghcr-config.env`
-2. (Optional) Configure ACR credentials in `configs/acr-config.env`
-3. (Optional) Configure Prisma Cloud in `configs/prisma-config.env`
-4. Run the build system:
+1. Build, smoke-test and CIS-gate everything locally on Docker Desktop (no registry needed):
    ```bash
-   # Build all LTS versions
-   make build-all
-   
-   # Build specific LTS version
-   make build-alpine-3.24
-   make build-debian-13
-   make build-redhat-10
+   ./scripts/local-build-test.sh            # all 14 images (every LTS base + 7 platforms)
+   ./scripts/local-build-test.sh --quick    # default bases + nginx/python
+   make build-alpine-3.24                   # one image (no tests)
    ```
-5. Build everything locally on Docker Desktop and run the CIS gate (no registry needed):
+2. Publish through CI: GHCR needs no setup (the workflow's `GITHUB_TOKEN` pushes).
    ```bash
-   # Base images + nginx/python, then CIS-verify them
-   ./scripts/local-build-test.sh
-   # Everything, including JVM/.NET platforms and the UBI 10 base
-   ./scripts/local-build-test.sh --all-platforms --with-redhat
+   scripts/deploy/github-setup.sh check && scripts/deploy/github-setup.sh run
    ```
-6. Run the CIS gates / scans individually:
+3. (Optional) Add Azure Container Registry, with OIDC and no stored secrets:
+   ```bash
+   scripts/deploy/azure-bootstrap.sh --acr-name <name> --configure-github
+   ```
+4. Run the gates / scans individually:
    ```bash
    make lint-dockerfiles                                     # CIS Docker build checks (trivy config)
    make cis-verify IMAGE=ghcr.io/<ns>/alpine-hardened:3.24   # built-image scan (trivy image)
-   make scan-comprehensive                                   # Trivy (+ optional Prisma) vuln scan
+   make smoke-test IMAGE=golden-local/nginx-platform:1.30-alpine3.24
+   make report                                               # size + vulnerability table
    ```
+
+See **[docs/BUILD-AND-DEPLOY.md](docs/BUILD-AND-DEPLOY.md)** for the build graph,
+the CI pipeline, tags, and the GitHub/Azure deployment details.
 
 ## Security Features
 
 - **CIS Docker Benchmark v1.7.0** compliance for container images, verified by a hard-fail gate
 - **Hard-fail CIS gate** — non-compliant images are never pushed (Dockerfile lint + image scan with **Trivy**; no vulnerable Dockle image)
+- **Functional smoke tests** before push: every HEALTHCHECK must turn healthy with all capabilities dropped
+- **Daily patch rebuilds**; no build-only tooling (curl, bash installers, pip) left in runtime images
 - Non-root execution everywhere (`appuser`, uid 10001); setuid/setgid binaries stripped
 - Upstream base images **pinned by digest**; minimal attack surface; latest patches
 - **Secret detection** in built images (`trivy image --scanners secret`)

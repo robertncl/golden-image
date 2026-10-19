@@ -20,6 +20,10 @@ mkdir -p "${APP_HOME}"
 chown "${APP_UID}:${APP_GID}" "${APP_HOME}"
 chmod 0750 "${APP_HOME}"
 
+# The Dockerfile purges `login` (no console logins in a container), which also
+# ships /usr/sbin/nologin; keep that path valid for system and service accounts.
+[ -e /usr/sbin/nologin ] || ln -s /bin/false /usr/sbin/nologin
+
 echo "[harden-debian] Locking default system accounts"
 for u in daemon bin sys sync games man lp mail news uucp proxy www-data backup \
          list irc gnats nobody _apt sshd; do

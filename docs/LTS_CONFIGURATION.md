@@ -100,25 +100,15 @@ make show-lts-versions
 # Validate LTS version configuration
 make validate-lts-config
 
-# Generate build targets from configuration
-./scripts/generate-build-targets.sh build-targets
-
-# Generate push targets from configuration
-./scripts/generate-build-targets.sh push-targets
+# Show the build graph bake resolves from the configuration
+make plan
 ```
 
 ### GitHub Actions Integration
 
-```bash
-# Generate JSON matrix for GitHub Actions
-./scripts/generate-github-matrix.sh json
-
-# Generate YAML matrix for GitHub Actions
-./scripts/generate-github-matrix.sh yaml
-
-# Generate scanning list for all versions
-./scripts/generate-github-matrix.sh scanning
-```
+Nothing to generate: `docker-bake.hcl` expands one target per configured
+version (a bake `matrix`), and CI builds that same graph. Adding a version to
+`configs/lts-versions.env` (plus its `Dockerfile.<ver>`) is all it takes.
 
 ## Dynamic Target Generation
 
@@ -152,28 +142,20 @@ To change default versions, update the `DEFAULT_*_VERSION` variables in `configs
 
 The registry sync script automatically syncs all configured LTS versions:
 
-```bash
-# Sync all LTS versions from GHCR to ACR
-make sync-to-acr
+CI promotes every published tag to ACR automatically when the repo is wired to
+Azure (see [BUILD-AND-DEPLOY.md](BUILD-AND-DEPLOY.md)). To copy tags by hand
+(registry-to-registry, every architecture + attestations):
 
-# Check sync status for all versions
-./scripts/registry-sync.sh status
+```bash
+az acr login --name <acr>
+make promote-acr ACR=<acr> IMAGES="ghcr.io/<owner>/alpine-hardened:3.24"
 ```
 
 ## GitHub Actions Integration
 
-The GitHub Actions workflow automatically builds all configured LTS versions. The matrix is generated from the configuration file.
-
-### Manual Matrix Generation
-
-If you need to update the GitHub Actions matrix manually:
-
-```bash
-# Generate the matrix section
-./scripts/generate-github-matrix.sh yaml
-```
-
-Copy the output to `.github/workflows/build.yml` in the matrix section.
+The GitHub Actions workflow builds every configured LTS version: it runs the
+same bake graph, which expands one target per version straight from
+`configs/lts-versions.env`. There is no matrix to regenerate.
 
 ## Validation
 
@@ -259,11 +241,8 @@ make validate-lts-config
 # Test specific version build
 make build-alpine-3.21
 
-# Check registry sync status
-./scripts/registry-sync.sh status
-
-# Generate debugging information
-./scripts/generate-build-targets.sh all
+# Show the resolved build graph (targets, tags, contexts)
+make plan
 ```
 
 ## Migration Guide

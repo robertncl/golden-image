@@ -56,12 +56,14 @@ Run locally:
 
 ```bash
 make lint-dockerfiles                                  # Dockerfile CIS checks
-make cis-verify IMAGE=ghcr.io/<ns>/alpine-hardened:3.20 # built-image scan
-./scripts/local-build-test.sh --all-platforms --with-redhat  # build + verify everything
+make cis-verify IMAGE=ghcr.io/<ns>/alpine-hardened:3.24 # built-image scan
+./scripts/local-build-test.sh                          # build + smoke-test + verify everything
 ```
 
-In CI (`.github/workflows/build.yml`) the gate runs **before push**: images are
-built single-arch and loaded, verified, and only then built multi-arch and pushed.
+In CI (`.github/workflows/build.yml`) the gate runs **before push**: each
+architecture builds natively on its own runner, every image is loaded,
+smoke-tested and verified, and only then pushed (by digest, from the same
+build cache) and merged into multi-arch tags.
 
 ## Linux VM images — OpenSCAP SSG
 

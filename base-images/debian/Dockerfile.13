@@ -4,34 +4,38 @@
 # Base pinned by tag AND digest (CIS 4.2 / 4.5 — trusted, immutable base).
 FROM debian:13-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f
 
-ARG BUILD_DATE
-ARG VCS_REF
-ARG VERSION=1.0.0
-
+# Static metadata only: build-specific labels (created, revision, version,
+# source) are applied by docker-bake.hcl so they never invalidate the cache.
 LABEL maintainer="Golden Image Build System" \
-      org.opencontainers.image.created="${BUILD_DATE}" \
-      org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.vendor="Golden Image Build System" \
       org.opencontainers.image.title="Debian 13 (Trixie) CIS-Hardened Base" \
       org.opencontainers.image.description="Debian 13 base hardened to CIS Docker Benchmark v1.7.0" \
-      org.opencontainers.image.source="https://github.com/your-org/golden-image" \
       org.opencontainers.image.licenses="MIT" \
       io.golden-image.cis.benchmark="CIS Docker Benchmark v1.7.0"
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-COPY scripts/container/harden-debian.sh /tmp/harden.sh
-RUN apt-get update && \
+# Patch to latest, install only init + CA certs, drop packages that have no job
+# in a container (login, mount: console login and mount(8)), then harden.
+# Single layer; update+install combined (CIS 4.7). PATCH_EPOCH re-runs the
+# upgrade once per epoch so a cached layer cannot pin stale packages.
+ARG PATCH_EPOCH
+RUN --mount=type=bind,source=scripts/container,target=/opt/golden-scripts \
+    echo "patch epoch: ${PATCH_EPOCH:-unset}" && \
+    apt-get update && \
     apt-get upgrade -y --no-install-recommends && \
     apt-get install -y --no-install-recommends ca-certificates tini && \
-    chmod 0755 /tmp/harden.sh && /tmp/harden.sh && \
-    rm -f /tmp/harden.sh && \
+    apt-get purge -y --allow-remove-essential login mount && \
+    apt-get autoremove -y --purge && \
+    bash /opt/golden-scripts/harden-debian.sh && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+
+# Run as the non-root user created by the hardening script (CIS 4.1).
 USER appuser
 
+# CIS 4.6 / CIS-DI-0006 — define a HEALTHCHECK.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD test -r /etc/os-release || exit 1
 

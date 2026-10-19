@@ -79,7 +79,12 @@ scripts/
 │   └── openscap-remediate.sh   # OpenSCAP CIS remediation + scoring gate
 ├── cis-verify.sh          # CIS gate: trivy image (vuln/secret/misconfig)
 ├── lint-dockerfiles.sh    # CIS gate: trivy config (Dockerfile build checks)
-├── local-build-test.sh    # Build + CIS-verify everything on Docker Desktop
+├── local-build-test.sh    # Build + smoke-test + CIS-verify everything on Docker Desktop
+├── smoke-test.sh          # Functional checks (non-root, healthchecks, runtimes)
+├── publish.sh             # Gate + push multi-arch from a workstation
+├── promote-to-acr.sh      # Registry-to-registry copy GHCR -> ACR
+├── deploy/                # One-time GitHub + Azure (OIDC) setup
+├── ci/                    # Manifest merge + Azure OIDC login used by CI
 └── build-helper.sh        # Build utilities
 ```
 

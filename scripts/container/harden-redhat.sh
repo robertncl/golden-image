@@ -27,6 +27,13 @@ else
   if ! grep -q "^${APP_USER}:" /etc/passwd; then
     echo "${APP_USER}:x:${APP_UID}:${APP_GID}::${APP_HOME}:/sbin/nologin" >> /etc/passwd
   fi
+  # Locked password (`!!`), matching what useradd writes for a no-password user.
+  if [ -f /etc/shadow ] && ! grep -q "^${APP_USER}:" /etc/shadow; then
+    echo "${APP_USER}:!!:$(( $(date +%s) / 86400 )):0:99999:7:::" >> /etc/shadow
+  fi
+  if [ -f /etc/gshadow ] && ! grep -q "^${APP_USER}:" /etc/gshadow; then
+    echo "${APP_USER}:!::" >> /etc/gshadow
+  fi
 fi
 mkdir -p "${APP_HOME}"
 chown "${APP_UID}:${APP_GID}" "${APP_HOME}"
@@ -53,7 +60,9 @@ fi
 echo "[harden-redhat] Setting ownership/permissions on account files"
 chown root:root /etc/passwd /etc/group 2>/dev/null || true
 chmod 0644 /etc/passwd /etc/group     2>/dev/null || true
-chmod 0640 /etc/shadow /etc/gshadow   2>/dev/null || true
+# RHEL ships the shadow files 0000 (only root, via CAP_DAC_OVERRIDE, reads
+# them); keep that rather than loosening to the 0640 used on Debian/Alpine.
+chmod 0000 /etc/shadow /etc/gshadow   2>/dev/null || true
 
 echo "[harden-redhat] Removing setuid/setgid bits from binaries  [CIS 4.8 / CIS-DI-0008]"
 find / -xdev -type f \( -perm -4000 -o -perm -2000 \) 2>/dev/null | while IFS= read -r f; do

@@ -168,10 +168,15 @@ platforms concurrently; tomcat/springboot automatically after openjdk via
 named contexts), with every shared layer built once.
 
 ```bash
-./scripts/local-build-test.sh                              # bases + nginx/python + CIS gate
-./scripts/local-build-test.sh --all-platforms --with-redhat # all 10 images
-./scripts/local-build-test.sh --print                       # show the resolved build plan
+./scripts/local-build-test.sh                         # all 14 images: build + smoke tests + CIS gate
+./scripts/local-build-test.sh --quick                 # default bases + nginx/python only
+./scripts/local-build-test.sh --platform linux/amd64  # CI's architecture, under emulation
+./scripts/local-build-test.sh --report report.md      # + size/vulnerability report
+./scripts/local-build-test.sh --print                 # show the resolved build plan
 ```
+
+Publishing (GHCR / ACR) and the one-time GitHub + Azure setup are covered in
+[docs/BUILD-AND-DEPLOY.md](docs/BUILD-AND-DEPLOY.md).
 
 ## Usage Examples
 
@@ -223,23 +228,23 @@ make deploy
 ## CI/CD Integration
 
 ### GitHub Actions
-The system includes a GitHub Actions workflow that:
-- Builds images on push/PR
-- Runs security scans
-- Performs integration tests
-- Updates latest tags
+`.github/workflows/build.yml` builds every image natively per architecture,
+smoke-tests and CIS-gates it, pushes multi-arch tags to GHCR, uploads a Trivy
+report to the Security tab and, when configured, promotes to ACR. It runs on
+pull requests (build + gate only), daily (patch rebuild) and on demand.
 
-### Required Secrets
-Set these secrets in your GitHub repository:
-- `ACR_LOGIN_SERVER` - Your ACR login server
-- `ACR_USERNAME` - ACR username
-- `ACR_PASSWORD` - ACR password
+### Repository variables (no secrets)
+GHCR uses the workflow's own `GITHUB_TOKEN`. ACR uses OIDC workload identity
+federation, so only identifiers are stored — as repository **variables**:
+`ACR_NAME`, `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`.
+`scripts/deploy/azure-bootstrap.sh --acr-name <name> --configure-github` creates
+the Azure side and sets them. Optional: `ARM64_RUNNER` (runner label, or `qemu`).
 
 ## Monitoring and Maintenance
 
 ### Regular Tasks
-1. **Weekly Security Updates**: Run `make build-all` to rebuild with latest patches
-2. **Vulnerability Scanning**: Run `make scan-images` to check for new vulnerabilities
+1. **Security Updates**: CI rebuilds daily with a new patch epoch; locally `make test` rebuilds with today's patches
+2. **Vulnerability Scanning**: Run `make report` for a size/vulnerability table of the local images
 3. **Image Cleanup**: Run `make clean` to remove old images
 
 ### Health Checks
