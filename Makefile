@@ -1,346 +1,162 @@
 # Golden Image Build System Makefile
+#
+# Every build goes through ONE bake graph (docker-bake.hcl); these targets are
+# thin wrappers around the scripts that CI runs too.
 
-# Load configuration
--include configs/ghcr-config.env
--include configs/acr-config.env
 -include configs/lts-versions.env
 -include configs/platform-lts-versions.env
+# The env files quote list values for the shell; make keeps quotes literally.
+ALPINE_VERSIONS := $(subst ",,$(ALPINE_VERSIONS))
+DEBIAN_VERSIONS := $(subst ",,$(DEBIAN_VERSIONS))
+REDHAT_VERSIONS := $(subst ",,$(REDHAT_VERSIONS))
 
-# Variables
-BUILD_DATE := $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
-VCS_REF := $(shell git rev-parse --short HEAD)
-VERSION := 1.0.0
+BAKE := docker buildx bake -f docker-bake.hcl
+# Feed configs/*.env into bake the same way CI does.
+BAKE_ENV := eval "$$(scripts/bake-env.sh --export)" &&
 
-# Registry configuration
-REGISTRY := $(GHCR_REGISTRY)/$(GHCR_NAMESPACE)
-ACR_REGISTRY := $(ACR_LOGIN_SERVER)
+# Destination for `make publish`, e.g. make publish REGISTRY=ghcr.io/robertncl
+REGISTRY ?=
+ACR ?=
+ARGS ?=
 
-# Base images
-BASE_IMAGES := alpine debian redhat
-PLATFORM_IMAGES := nginx openjdk tomcat python springboot aspnet dotnet
-
-# LTS versions for each OS (loaded from configs/lts-versions.env)
-# ALPINE_VERSIONS, DEBIAN_VERSIONS, REDHAT_VERSIONS are defined in lts-versions.env
-
-# Docker build arguments
-BUILD_ARGS := --build-arg BUILD_DATE=$(BUILD_DATE) --build-arg VCS_REF=$(VCS_REF) --build-arg VERSION=$(VERSION)
-
-# Default target
 .PHONY: help
 help:
 	@echo "Golden Image Build System"
 	@echo "========================="
 	@echo ""
-	@echo "Available targets:"
-	@echo "  build-base-images    - Build all base OS images (all LTS versions)"
-	@echo "  build-platform-images - Build all platform images"
-	@echo "  build-all           - Build all images"
-	@echo "  push-base-images    - Push base images to GHCR (all LTS versions)"
-	@echo "  push-platform-images - Push platform images to GHCR"
-	@echo "  push-all           - Push all images to GHCR"
-	@echo "  scan-images        - Scan images for vulnerabilities"
-	@echo "  clean              - Clean build artifacts"
-	@echo "  help               - Show this help"
+	@echo "Local (Docker Desktop):"
+	@echo "  test                 - Build ALL images, smoke-test + CIS-gate them (ARGS=... for more flags)"
+	@echo "  test-quick           - Same for the default Alpine/Debian bases + nginx + python"
+	@echo "  build                - Build the default group (no tests)"
+	@echo "  build-all            - Build every LTS base + every platform image (no tests)"
+	@echo "  build-bases          - Build every LTS base image"
+	@echo "  build-platforms      - Build every platform image"
+	@echo "  build-<os>-<ver>     - One base, e.g. build-alpine-3.24, build-debian-13, build-redhat-10"
+	@echo "  build-<platform>     - One platform, e.g. build-nginx, build-tomcat"
+	@echo "  report               - Size/vulnerability report for all images (needs a prior build)"
+	@echo "  plan                 - Show the resolved bake graph"
 	@echo ""
-	@echo "LTS Version Management:"
-	@echo "  show-lts-versions           - Show current OS LTS version configuration"
-	@echo "  show-platform-versions      - Show current platform LTS version configuration"
-	@echo "  validate-lts-config         - Validate OS LTS version configuration"
-	@echo "  validate-platform-config    - Validate platform LTS version configuration"
+	@echo "Gates:"
+	@echo "  lint-dockerfiles     - CIS Docker build checks (trivy config)"
+	@echo "  cis-verify IMAGE=..  - CIS gate for one built image (trivy image)"
+	@echo "  smoke-test IMAGE=..  - Functional smoke tests for one built image"
 	@echo ""
-	@echo "OS LTS Version Targets:"
-	@echo "  build-alpine-<version>      - Build specific Alpine LTS version"
-	@echo "  build-debian-<version>      - Build specific Debian LTS version"
-	@echo "  build-redhat-<version>      - Build specific RedHat LTS version"
-	@echo "  push-alpine-<version>       - Push specific Alpine LTS version"
-	@echo "  push-debian-<version>       - Push specific Debian LTS version"
-	@echo "  push-redhat-<version>       - Push specific RedHat LTS version"
+	@echo "Deploy:"
+	@echo "  publish REGISTRY=ghcr.io/<owner> [ACR=<name>]  - Gate + push multi-arch from this machine"
+	@echo "  promote-acr ACR=<name> IMAGES='...'            - Copy published tags to ACR"
+	@echo "  azure-bootstrap ACR=<name>                     - One-time ACR + OIDC setup (ARGS=--dry-run)"
+	@echo "  github-check                                   - Verify the GitHub repo is wired up"
+	@echo "  github-run                                     - Dispatch the CI pipeline and follow it"
 	@echo ""
-	@echo "Platform LTS Version Targets:"
-	@echo "  build-<platform>-<version>-<os>-<os_version> - Build specific platform version on specific OS"
-	@echo "  push-<platform>-<version>-<os>-<os_version>  - Push specific platform version on specific OS"
-	@echo "  build-all-platforms         - Build all platform versions on all OS versions"
-	@echo "  push-all-platforms          - Push all platform versions on all OS versions"
-	@echo ""
-	@echo "To add/remove OS LTS versions, edit configs/lts-versions.env"
-	@echo "To add/remove platform LTS versions, edit configs/platform-lts-versions.env"
+	@echo "Config:"
+	@echo "  show-lts-versions / show-platform-versions / validate-lts-config"
+	@echo "  To add/remove LTS versions edit configs/lts-versions.env; platform defaults"
+	@echo "  live in configs/platform-lts-versions.env."
 
-# Build base images
-.PHONY: build-base-images
-build-base-images: build-all-alpine-versions build-all-debian-versions build-all-redhat-versions
+# ---- local build + test -------------------------------------------------------
 
-# Build all Alpine LTS versions
-.PHONY: build-all-alpine-versions
-build-all-alpine-versions: $(addprefix build-alpine-,$(ALPINE_VERSIONS))
+.PHONY: test test-quick local-test
+test:
+	@./scripts/local-build-test.sh $(ARGS)
+test-quick:
+	@./scripts/local-build-test.sh --quick $(ARGS)
+local-test: test
 
-# Alpine build targets are dynamically generated based on ALPINE_VERSIONS in lts-versions.env
-# To add/remove Alpine versions, edit configs/lts-versions.env and run: make validate-lts-config
+.PHONY: build build-all build-bases build-platforms build-base-images build-platform-images plan
+build:
+	@$(BAKE_ENV) $(BAKE) --load default
+build-all:
+	@$(BAKE_ENV) $(BAKE) --load all
+build-bases build-base-images:
+	@$(BAKE_ENV) $(BAKE) --load bases
+build-platforms build-platform-images:
+	@$(BAKE_ENV) $(BAKE) --load platforms
+plan:
+	@$(BAKE_ENV) $(BAKE) --print all
 
-# Build all Debian LTS versions
-.PHONY: build-all-debian-versions
-build-all-debian-versions: $(addprefix build-debian-,$(DEBIAN_VERSIONS))
+# build-alpine-3.24 -> bake target alpine-3-24
+build-alpine-% build-debian-% build-redhat-%:
+	@$(BAKE_ENV) $(BAKE) --load $(subst .,-,$(patsubst build-%,%,$@))
 
-# Debian build targets are dynamically generated based on DEBIAN_VERSIONS in lts-versions.env
-# To add/remove Debian versions, edit configs/lts-versions.env and run: make validate-lts-config
+PLATFORMS_LIST := nginx python openjdk tomcat springboot aspnet dotnet
+$(addprefix build-,$(PLATFORMS_LIST)):
+	@$(BAKE_ENV) $(BAKE) --load $(patsubst build-%,%,$@)
 
-# Build all RedHat LTS versions
-.PHONY: build-all-redhat-versions
-build-all-redhat-versions: $(addprefix build-redhat-,$(REDHAT_VERSIONS))
+.PHONY: report
+report:
+	@$(BAKE_ENV) ./scripts/image-report.sh $$(./scripts/bake-images.sh all)
 
-# RedHat build targets are dynamically generated based on REDHAT_VERSIONS in lts-versions.env
-# To add/remove RedHat versions, edit configs/lts-versions.env and run: make validate-lts-config
+# ---- gates --------------------------------------------------------------------
 
-# Legacy targets for backward compatibility
-build-base-alpine: build-alpine-$(DEFAULT_ALPINE_VERSION)
-build-base-debian: build-debian-$(DEFAULT_DEBIAN_VERSION)
-build-base-redhat: build-redhat-$(DEFAULT_REDHAT_VERSION)
+.PHONY: lint-dockerfiles cis-verify smoke-test
+lint-dockerfiles:
+	@./scripts/lint-dockerfiles.sh
+cis-verify:
+	@if [ -z "$(IMAGE)" ]; then echo "❌ Please specify IMAGE=<image:tag>"; exit 1; fi
+	@./scripts/cis-verify.sh $(IMAGE)
+smoke-test:
+	@if [ -z "$(IMAGE)" ]; then echo "❌ Please specify IMAGE=<image:tag>"; exit 1; fi
+	@./scripts/smoke-test.sh $(IMAGE)
 
-# Pattern rules: build a specific hardened base image for any LTS version.
-# Build context is the repo root so the container hardening scripts are visible.
-build-alpine-%:
-	@echo "🔨 Building hardened Alpine $* base image..."
-	docker build $(BUILD_ARGS) -f base-images/alpine/Dockerfile.$* -t $(REGISTRY)/alpine-hardened:$* .
+# ---- deploy -------------------------------------------------------------------
 
-build-debian-%:
-	@echo "🔨 Building hardened Debian $* base image..."
-	docker build $(BUILD_ARGS) -f base-images/debian/Dockerfile.$* -t $(REGISTRY)/debian-hardened:$* .
+.PHONY: publish deploy promote-acr sync-to-acr azure-bootstrap github-check github-run
+publish deploy:
+	@if [ -z "$(REGISTRY)" ]; then echo "❌ Please specify REGISTRY=ghcr.io/<owner>"; exit 1; fi
+	@./scripts/publish.sh --registry $(REGISTRY) $(if $(ACR),--acr $(ACR)) $(ARGS)
+promote-acr sync-to-acr:
+	@if [ -z "$(ACR)" ] || [ -z "$(IMAGES)" ]; then echo "❌ Please specify ACR=<name> IMAGES='<image:tag> ...'"; exit 1; fi
+	@./scripts/promote-to-acr.sh --acr $(ACR) $(IMAGES)
+azure-bootstrap:
+	@if [ -z "$(ACR)" ]; then echo "❌ Please specify ACR=<registry-name>"; exit 1; fi
+	@./scripts/deploy/azure-bootstrap.sh --acr-name $(ACR) $(ARGS)
+github-check:
+	@./scripts/deploy/github-setup.sh check
+github-run:
+	@./scripts/deploy/github-setup.sh run $(ARGS)
 
-build-redhat-%:
-	@echo "🔨 Building hardened RedHat UBI $* base image..."
-	docker build $(BUILD_ARGS) -f base-images/redhat/Dockerfile.$* -t $(REGISTRY)/redhat-hardened:$* .
-
-# Dynamic target generation and validation
-.PHONY: validate-lts-config
-validate-lts-config:
-	@echo "🔍 Validating LTS version configuration..."
-	@for version in $(ALPINE_VERSIONS); do \
-		if [ ! -f base-images/alpine/Dockerfile.$$version ]; then \
-			echo "❌ Missing Alpine $$version Dockerfile"; \
-			exit 1; \
-		fi; \
-	done
-	@for version in $(DEBIAN_VERSIONS); do \
-		if [ ! -f base-images/debian/Dockerfile.$$version ]; then \
-			echo "❌ Missing Debian $$version Dockerfile"; \
-			exit 1; \
-		fi; \
-	done
-	@for version in $(REDHAT_VERSIONS); do \
-		if [ ! -f base-images/redhat/Dockerfile.$$version ]; then \
-			echo "❌ Missing RedHat $$version Dockerfile"; \
-			exit 1; \
-		fi; \
-	done
-	@echo "✅ LTS version configuration is valid"
+# ---- config -------------------------------------------------------------------
 
 .PHONY: show-lts-versions
 show-lts-versions:
 	@echo "📋 Current LTS version configuration:"
-	@echo "  Alpine versions: $(ALPINE_VERSIONS)"
-	@echo "  Debian versions: $(DEBIAN_VERSIONS)"
-	@echo "  RedHat versions: $(REDHAT_VERSIONS)"
-	@echo ""
-	@echo "Default versions:"
-	@echo "  Alpine default: $(DEFAULT_ALPINE_VERSION)"
-	@echo "  Debian default: $(DEFAULT_DEBIAN_VERSION)"
-	@echo "  RedHat default: $(DEFAULT_REDHAT_VERSION)"
+	@echo "  Alpine versions: $(ALPINE_VERSIONS)  (default $(DEFAULT_ALPINE_VERSION))"
+	@echo "  Debian versions: $(DEBIAN_VERSIONS)  (default $(DEFAULT_DEBIAN_VERSION))"
+	@echo "  RedHat versions: $(REDHAT_VERSIONS)  (default $(DEFAULT_REDHAT_VERSION))"
 
 .PHONY: show-platform-versions
 show-platform-versions:
-	@echo "📋 Current platform LTS version configuration:"
-	@echo "  Nginx versions: $(NGINX_VERSIONS)"
-	@echo "  OpenJDK versions: $(OPENJDK_VERSIONS)"
-	@echo "  Tomcat versions: $(TOMCAT_VERSIONS)"
-	@echo "  Python versions: $(PYTHON_VERSIONS)"
-	@echo "  Spring Boot versions: $(SPRINGBOOT_VERSIONS)"
-	@echo "  ASP.NET versions: $(ASPNET_VERSIONS)"
-	@echo "  .NET Runtime versions: $(DOTNET_VERSIONS)"
-	@echo ""
-	@echo "Default versions:"
-	@echo "  Nginx default: $(DEFAULT_NGINX_VERSION)"
-	@echo "  OpenJDK default: $(DEFAULT_OPENJDK_VERSION)"
-	@echo "  Tomcat default: $(DEFAULT_TOMCAT_VERSION)"
-	@echo "  Python default: $(DEFAULT_PYTHON_VERSION)"
-	@echo "  Spring Boot default: $(DEFAULT_SPRINGBOOT_VERSION)"
-	@echo "  ASP.NET default: $(DEFAULT_ASPNET_VERSION)"
-	@echo "  .NET Runtime default: $(DEFAULT_DOTNET_VERSION)"
+	@echo "📋 Platform defaults (built on Alpine $(DEFAULT_ALPINE_VERSION)):"
+	@echo "  Nginx $(DEFAULT_NGINX_VERSION), OpenJDK $(DEFAULT_OPENJDK_VERSION), Tomcat $(DEFAULT_TOMCAT_VERSION),"
+	@echo "  Python $(DEFAULT_PYTHON_VERSION), Spring Boot $(DEFAULT_SPRINGBOOT_VERSION),"
+	@echo "  ASP.NET $(DEFAULT_ASPNET_VERSION), .NET $(DEFAULT_DOTNET_VERSION)"
 
-.PHONY: validate-platform-config
-validate-platform-config:
-	@echo "🔍 Validating platform LTS version configuration..."
-	@if [ -z "$(NGINX_VERSIONS)" ]; then echo "❌ Missing NGINX_VERSIONS configuration"; exit 1; fi
-	@if [ -z "$(OPENJDK_VERSIONS)" ]; then echo "❌ Missing OPENJDK_VERSIONS configuration"; exit 1; fi
-	@if [ -z "$(TOMCAT_VERSIONS)" ]; then echo "❌ Missing TOMCAT_VERSIONS configuration"; exit 1; fi
-	@if [ -z "$(PYTHON_VERSIONS)" ]; then echo "❌ Missing PYTHON_VERSIONS configuration"; exit 1; fi
-	@if [ -z "$(SPRINGBOOT_VERSIONS)" ]; then echo "❌ Missing SPRINGBOOT_VERSIONS configuration"; exit 1; fi
-	@if [ -z "$(ASPNET_VERSIONS)" ]; then echo "❌ Missing ASPNET_VERSIONS configuration"; exit 1; fi
-	@if [ -z "$(DOTNET_VERSIONS)" ]; then echo "❌ Missing DOTNET_VERSIONS configuration"; exit 1; fi
-	@echo "✅ Platform LTS version configuration is valid"
-
-# Build platform images (all LTS versions)
-.PHONY: build-platform-images
-build-platform-images: build-all-platforms
-
-# Platform build targets are dynamically generated based on platform LTS versions in platform-lts-versions.env
-# To add/remove platform versions, edit configs/platform-lts-versions.env and run: make validate-platform-config
-
-# Build all images
-.PHONY: build-all
-build-all: build-base-images build-platform-images
-
-# Push base images to GHCR
-.PHONY: push-base-images
-push-base-images: push-all-alpine-versions push-all-debian-versions push-all-redhat-versions
-
-# Push all Alpine LTS versions (pattern rule — version-agnostic)
-.PHONY: push-all-alpine-versions
-push-all-alpine-versions: $(addprefix push-alpine-,$(ALPINE_VERSIONS))
-
-push-alpine-%:
-	@echo "📤 Pushing Alpine $* hardened base image to GHCR..."
-	docker push $(REGISTRY)/alpine-hardened:$*
-
-# Push all Debian LTS versions
-.PHONY: push-all-debian-versions
-push-all-debian-versions: $(addprefix push-debian-,$(DEBIAN_VERSIONS))
-
-push-debian-%:
-	@echo "📤 Pushing Debian $* hardened base image to GHCR..."
-	docker push $(REGISTRY)/debian-hardened:$*
-
-# Push all RedHat LTS versions
-.PHONY: push-all-redhat-versions
-push-all-redhat-versions: $(addprefix push-redhat-,$(REDHAT_VERSIONS))
-
-push-redhat-%:
-	@echo "📤 Pushing RedHat UBI $* hardened base image to GHCR..."
-	docker push $(REGISTRY)/redhat-hardened:$*
-
-# Legacy targets for backward compatibility
-push-base-alpine: push-alpine-$(DEFAULT_ALPINE_VERSION)
-push-base-debian: push-debian-$(DEFAULT_DEBIAN_VERSION)
-push-base-redhat: push-redhat-$(DEFAULT_REDHAT_VERSION)
-
-# Push platform images to GHCR (all LTS versions)
-.PHONY: push-platform-images
-push-platform-images: push-all-platforms
-
-# Platform push targets are dynamically generated based on platform LTS versions in platform-lts-versions.env
-# To add/remove platform versions, edit configs/platform-lts-versions.env and run: make validate-platform-config
-
-# Push all images to GHCR
-.PHONY: push-all
-push-all: push-base-images push-platform-images
-
-# Sync images from GHCR to ACR
-.PHONY: sync-to-acr
-sync-to-acr:
-	@echo "🔄 Syncing images from GHCR to ACR..."
-	@./scripts/registry-sync.sh sync-all
-
-# Sync specific image to ACR
-.PHONY: sync-image-to-acr
-sync-image-to-acr:
-	@if [ -z "$(IMAGE_NAME)" ]; then \
-		echo "❌ Please specify IMAGE_NAME=<image-name>"; \
-		exit 1; \
-	fi
-	@echo "🔄 Syncing $(IMAGE_NAME) from GHCR to ACR..."
-	@./scripts/registry-sync.sh sync-image $(IMAGE_NAME) $(IMAGE_TAG)
-
-# Scan images for vulnerabilities
-.PHONY: scan-images
-scan-images:
-	@echo "🔍 Scanning images for vulnerabilities..."
-	@if command -v trivy >/dev/null 2>&1; then \
-		for image in $(REGISTRY)/alpine-hardened:3.22 \
-			$(REGISTRY)/alpine-hardened:3.23 \
-			$(REGISTRY)/alpine-hardened:3.24 \
-			$(REGISTRY)/debian-hardened:12 \
-			$(REGISTRY)/debian-hardened:13 \
-			$(REGISTRY)/redhat-hardened:9 \
-			$(REGISTRY)/redhat-hardened:10 \
-			$(REGISTRY)/nginx-platform:$(PLATFORM_IMAGE_TAG) \
-			$(REGISTRY)/openjdk-platform:$(PLATFORM_IMAGE_TAG) \
-			$(REGISTRY)/python-platform:$(PLATFORM_IMAGE_TAG) \
-			$(REGISTRY)/dotnet-platform:$(PLATFORM_IMAGE_TAG); do \
-			echo "Scanning $$image..."; \
-			trivy image --severity HIGH,CRITICAL $$image; \
+.PHONY: validate-lts-config
+validate-lts-config:
+	@echo "🔍 Validating LTS version configuration..."
+	@$(BAKE_ENV) for os in alpine debian redhat; do \
+		case $$os in alpine) vs="$$ALPINE_VERSIONS";; debian) vs="$$DEBIAN_VERSIONS";; redhat) vs="$$REDHAT_VERSIONS";; esac; \
+		for v in $$vs; do \
+			[ -f base-images/$$os/Dockerfile.$$v ] || { echo "❌ Missing base-images/$$os/Dockerfile.$$v"; exit 1; }; \
 		done; \
-	else \
-		echo "Trivy not found. Install it to scan images for vulnerabilities."; \
-	fi
+	done
+	@$(BAKE_ENV) $(BAKE) --print all >/dev/null 2>&1
+	@echo "✅ LTS version configuration is valid"
 
-# Lint all Dockerfiles against CIS Docker build checks (trivy config). Hard fail.
-.PHONY: lint-dockerfiles
-lint-dockerfiles:
-	@./scripts/lint-dockerfiles.sh
+# ---- optional extra scanners --------------------------------------------------
 
-# CIS verification gate for a built image (trivy: vuln+secret+misconfig). Hard fail.
-# Usage: make cis-verify IMAGE=ghcr.io/<ns>/alpine-hardened:3.24
-.PHONY: cis-verify
-cis-verify:
-	@if [ -z "$(IMAGE)" ]; then echo "❌ Please specify IMAGE=<image:tag>"; exit 1; fi
-	@./scripts/cis-verify.sh $(IMAGE)
-
-# Build every golden image locally on Docker Desktop and CIS-verify them.
-# Pass extra flags via ARGS, e.g. make local-test ARGS="--all-platforms --with-redhat"
-.PHONY: local-test
-local-test:
-	@./scripts/local-build-test.sh $(ARGS)
-
-# Comprehensive security scanning with multiple tools
-.PHONY: scan-comprehensive
+.PHONY: scan-comprehensive scan-trivy scan-prisma scan-prisma-only
 scan-comprehensive:
-	@echo "🔍 Running comprehensive security scan..."
 	@./scripts/comprehensive-scan.sh
-
-# Prisma Cloud security scanning
-.PHONY: scan-prisma
-scan-prisma:
-	@echo "🔍 Running Prisma Cloud security scan..."
-	@./scripts/prisma-scan.sh
-
-# Trivy-only security scanning
-.PHONY: scan-trivy
 scan-trivy:
-	@echo "🔍 Running Trivy security scan..."
 	@./scripts/comprehensive-scan.sh --trivy-only
-
-# Prisma Cloud-only security scanning
-.PHONY: scan-prisma-only
+scan-prisma:
+	@./scripts/prisma-scan.sh
 scan-prisma-only:
-	@echo "🔍 Running Prisma Cloud-only security scan..."
 	@./scripts/comprehensive-scan.sh --prisma-only
 
-# Clean build artifacts
 .PHONY: clean
 clean:
-	@echo "🧹 Cleaning build artifacts..."
-	docker system prune -f
-	docker image prune -f
-
-# Login to registries
-.PHONY: login-ghcr
-login-ghcr:
-	@echo "🔐 Logging into GitHub Container Registry..."
-	@if [ -n "$(GHCR_USERNAME)" ] && [ -n "$(GHCR_PASSWORD)" ]; then \
-		echo "$(GHCR_PASSWORD)" | docker login $(GHCR_REGISTRY) -u $(GHCR_USERNAME) --password-stdin; \
-	else \
-		echo "$(GITHUB_TOKEN)" | docker login $(GHCR_REGISTRY) -u $(GITHUB_ACTOR) --password-stdin; \
-	fi
-
-.PHONY: login-acr
-login-acr:
-	@echo "🔐 Logging into Azure Container Registry..."
-	@echo "$(ACR_PASSWORD)" | docker login $(ACR_LOGIN_SERVER) -u $(ACR_USERNAME) --password-stdin
-
-# Complete build and push workflow
-.PHONY: deploy
-deploy: login-ghcr build-all push-all scan-images
-	@echo "✅ Complete build and deployment to GHCR completed successfully!"
-
-# Complete workflow with ACR sync
-.PHONY: deploy-with-sync
-deploy-with-sync: deploy login-acr sync-to-acr
-	@echo "✅ Complete build, push to GHCR, and sync to ACR completed successfully!" 
+	@echo "🧹 Removing locally built golden images and dangling build cache..."
+	-@docker images --format '{{.Repository}}:{{.Tag}}' | grep -E '^golden-(local|gate-)' | xargs -r docker rmi
+	@docker builder prune -f

@@ -1,18 +1,30 @@
 name: Golden Image Build, CIS-Verify and Publish
 
+# One bake graph (docker-bake.hcl) builds every image. Each architecture builds
+# natively on its own runner (no QEMU), is smoke-tested and CIS-gated, and only
+# then pushes by digest; a merge job stitches the digests into multi-arch tags
+# on GHCR, scans them for the Security tab and, when configured, promotes them
+# to Azure Container Registry over OIDC.
+#
+#   lint ─▶ plan ─▶ build (amd64 ‖ arm64) ─▶ merge ─▶ security-report
+#                                                  └─▶ promote-acr
+#
+# Pull requests build + gate amd64 only and never push. The daily schedule
+# rebuilds with a new PATCH_EPOCH so published images pick up distro patches.
+
 on:
   workflow_dispatch:
     inputs:
       push_images:
-        description: "Push images to GHCR (after they pass the CIS gate)"
+        description: "Push images to GHCR (after they pass the smoke tests and CIS gate)"
         type: boolean
         default: true
       platforms:
-        description: "Target platforms for the published multi-arch images"
+        description: "Target platforms (each builds natively on its own runner)"
         type: string
         default: "linux/amd64,linux/arm64"
       publish_latest:
-        description: "Also tag as latest (main only)"
+        description: "Also tag the default flavours as latest (default branch only)"
         type: boolean
         default: false
       build_scope:
@@ -23,271 +35,339 @@ on:
           - base-only
           - platform-only
         default: all
+  schedule:
+    - cron: "23 4 * * *" # daily patch rebuild
+  pull_request:
+    paths:
+      - "base-images/**"
+      - "platform-images/**"
+      - "scripts/**"
+      - "configs/**"
+      - "docker-bake.hcl"
+      - ".github/workflows/build.yml"
 
 permissions:
   contents: read
-  packages: write
-  security-events: write
 
 concurrency:
   group: golden-image-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  GHCR_REGISTRY: ghcr.io
-  REGISTRY: ghcr.io/${{ github.repository_owner }}
-  IMAGE_TAG: ${{ github.sha }}
-  # Free-text dispatch input: passed via env (never `${{ }}`-interpolated into
-  # run: scripts) so it cannot inject shell commands.
-  PLATFORMS: ${{ inputs.platforms }}
-  # CIS gate thresholds (consumed by scripts/cis-verify.sh)
-  DOCKLE_EXIT_LEVEL: warn
   TRIVY_SEVERITY: HIGH,CRITICAL
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Dockerfile CIS build-practice gate (trivy config). Runs first; the whole
-  # pipeline is blocked if any Dockerfile violates the CIS Docker build checks.
+  # Fast static gates: Dockerfile CIS build checks, shell lint, and a parse of
+  # the bake graph. Everything else waits on this.
   # ---------------------------------------------------------------------------
-  dockerfile-cis-lint:
-    runs-on: ubuntu-latest
+  lint:
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Install Trivy
         run: ./scripts/install-trivy.sh
       - name: Lint Dockerfiles (CIS Docker build checks)
         run: ./scripts/lint-dockerfiles.sh
+      - name: ShellCheck build scripts
+        run: |
+          shellcheck -S warning scripts/ci/*.sh scripts/deploy/*.sh scripts/container/*.sh \
+            scripts/bake-env.sh scripts/bake-images.sh scripts/cis-verify.sh scripts/image-report.sh \
+            scripts/install-trivy.sh scripts/lint-dockerfiles.sh scripts/local-build-test.sh \
+            scripts/promote-to-acr.sh scripts/publish.sh scripts/smoke-test.sh
+      - name: Validate bake graph
+        run: |
+          eval "$(scripts/bake-env.sh --export)"
+          docker buildx bake -f docker-bake.hcl --print all > /dev/null
 
   # ---------------------------------------------------------------------------
-  # Base OS images: build (amd64, loaded) -> CIS gate -> push multi-arch.
-  # The image is NEVER pushed unless it passes the Trivy CIS gate.
+  # Resolve the run: what to build, for which architectures, and whether and
+  # how to tag it. Untrusted inputs reach the script through env only.
   # ---------------------------------------------------------------------------
-  generate-matrix:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+  plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      targets: ${{ steps.plan.outputs.targets }}
+      push: ${{ steps.plan.outputs.push }}
+      registry: ${{ steps.plan.outputs.registry }}
+      patch_epoch: ${{ steps.plan.outputs.patch_epoch }}
+      build_date: ${{ steps.plan.outputs.build_date }}
+      tag_suffixes: ${{ steps.plan.outputs.tag_suffixes }}
+      publish_latest: ${{ steps.plan.outputs.publish_latest }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - id: set-matrix
+      - id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          IN_PUSH: ${{ inputs.push_images }}
+          IN_PLATFORMS: ${{ inputs.platforms }}
+          IN_SCOPE: ${{ inputs.build_scope }}
+          IN_LATEST: ${{ inputs.publish_latest }}
+          REF: ${{ github.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          OWNER: ${{ github.repository_owner }}
+          ARM64_RUNNER: ${{ vars.ARM64_RUNNER }}
         run: |
-          chmod +x scripts/generate-github-matrix.sh
+          set -euo pipefail
+          on_default=false; [ "${REF}" = "refs/heads/${DEFAULT_BRANCH}" ] && on_default=true
+          case "${EVENT}" in
+            pull_request) push=false; platforms="linux/amd64"; scope=all; latest=false ;;
+            schedule)     push=true;  platforms="linux/amd64,linux/arm64"; scope=all; latest=true ;;
+            *)            push="${IN_PUSH:-false}"; platforms="${IN_PLATFORMS:-linux/amd64,linux/arm64}"
+                          scope="${IN_SCOPE:-all}"; latest="${IN_LATEST:-false}" ;;
+          esac
+          [ "${on_default}" = true ] || latest=false
+          case "${scope}" in
+            all) targets=all ;; base-only) targets=bases ;; platform-only) targets=platforms ;;
+            *) echo "unknown build_scope: ${scope}" >&2; exit 1 ;;
+          esac
+          # One native runner per architecture. ARM64_RUNNER (repo variable)
+          # overrides the arm64 runner label; set it to "qemu" to emulate on
+          # x64 where hosted arm64 runners are unavailable.
+          matrix="$(jq -cn --arg p "${platforms}" --arg arm "${ARM64_RUNNER:-ubuntu-24.04-arm}" '
+            {include: [$p | split(",")[] | gsub("\\s"; "") | select(. != "")
+              | if . == "linux/amd64" then {arch: "amd64", platform: ., runner: "ubuntu-24.04", qemu: false}
+                elif . == "linux/arm64" then
+                  (if $arm == "qemu" then {arch: "arm64", platform: ., runner: "ubuntu-24.04", qemu: true}
+                   else {arch: "arm64", platform: ., runner: $arm, qemu: false} end)
+                else error("unsupported platform: \(.)") end]}')"
+          epoch="$(date -u +%Y%m%d)"
           {
-            echo "matrix<<EOF"
-            ./scripts/generate-github-matrix.sh json
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+            echo "matrix=${matrix}"
+            echo "targets=${targets}"
+            echo "push=${push}"
+            echo "registry=ghcr.io/${OWNER,,}"
+            echo "patch_epoch=${epoch}"
+            echo "build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "tag_suffixes=${epoch},sha-${GITHUB_SHA::7}"
+            echo "publish_latest=${latest}"
+          } | tee -a "${GITHUB_OUTPUT}"
 
-  build-base-images:
-    runs-on: ubuntu-latest
-    needs: [generate-matrix, dockerfile-cis-lint]
+  # ---------------------------------------------------------------------------
+  # Per-architecture: build the whole graph (load) -> smoke tests -> CIS gate
+  # -> push by digest. The push re-uses the builder's cache from the load
+  # step, so it only exports what was just tested. Nothing is pushed unless
+  # every image on this architecture passed.
+  # ---------------------------------------------------------------------------
+  build:
+    needs: [lint, plan]
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
-    if: ${{ inputs.build_scope == 'all' || inputs.build_scope == 'base-only' }}
+    permissions:
+      contents: read
+      packages: write
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+    env:
+      REGISTRY: ${{ needs.plan.outputs.registry }}
+      PATCH_EPOCH: ${{ needs.plan.outputs.patch_epoch }}
+      BUILD_DATE: ${{ needs.plan.outputs.build_date }}
+      VCS_REF: ${{ github.sha }}
+      SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
+      PLATFORMS: ${{ matrix.platform }}
+      CACHE_BACKEND: gha
+      CACHE_SCOPE_SUFFIX: -${{ matrix.arch }}
+      TARGETS: ${{ needs.plan.outputs.targets }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        if: ${{ matrix.qemu }}
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-      - name: Install Trivy
-        run: ./scripts/install-trivy.sh
-      - name: Build base image (amd64, loaded) for the CIS gate
+      - name: Install Trivy (+ jq if the runner image lacks it)
         run: |
-          docker buildx build --load \
-            --build-arg BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-            --build-arg VCS_REF="${IMAGE_TAG}" \
-            --build-arg VERSION=1.0.0 \
-            -f base-images/${{ matrix.os }}/Dockerfile.${{ matrix.version }} \
-            -t gate/${{ matrix.os }}-hardened:${{ matrix.version }} \
-            --cache-from type=gha,scope=${{ matrix.os }}-${{ matrix.version }} \
-            --cache-to type=gha,mode=max,scope=${{ matrix.os }}-${{ matrix.version }} \
-            .
-      - name: CIS gate — Dockle + Trivy (hard fail)
-        run: ./scripts/cis-verify.sh gate/${{ matrix.os }}-hardened:${{ matrix.version }}
+          command -v jq >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq jq; }
+          ./scripts/install-trivy.sh
+      - name: Load version config into the bake environment
+        run: ./scripts/bake-env.sh >> "${GITHUB_ENV}"
+
+      - name: Build all images (${{ matrix.arch }})
+        uses: docker/bake-action@59cb1203cd42bcefd40a1b6d73b589e48c86040e # v7.5.0
+        with:
+          source: .
+          files: ./docker-bake.hcl
+          targets: ${{ env.TARGETS }}
+          load: true
+
+      - name: Resolve built images
+        run: ./scripts/bake-images.sh "${TARGETS}" | tee images.txt
+
+      - name: Smoke tests
+        run: xargs ./scripts/smoke-test.sh < images.txt
+
+      - name: CIS gate — Trivy (hard fail)
+        run: xargs ./scripts/cis-verify.sh < images.txt
+
       - name: Log in to GHCR
-        if: ${{ inputs.push_images }}
+        if: ${{ needs.plan.outputs.push == 'true' }}
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
-          registry: ${{ env.GHCR_REGISTRY }}
-          username: ${{ secrets.GHCR_USERNAME || github.repository_owner }}
-          password: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
-      - name: Build & push base image (multi-arch) — only after passing the gate
-        if: ${{ inputs.push_images }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push by digest (with provenance + SBOM) — only after passing the gates
+        id: push
+        if: ${{ needs.plan.outputs.push == 'true' }}
+        uses: docker/bake-action@59cb1203cd42bcefd40a1b6d73b589e48c86040e # v7.5.0
+        env:
+          PUSH_BY_DIGEST: "true"
+          ATTEST: "true"
+          CACHE_TO: "false"
+        with:
+          source: .
+          files: ./docker-bake.hcl
+          targets: ${{ env.TARGETS }}
+
+      - name: Record digests
+        if: ${{ needs.plan.outputs.push == 'true' }}
+        env:
+          METADATA: ${{ steps.push.outputs.metadata }}
+          ARCH: ${{ matrix.arch }}
         run: |
-          EXTRA=""
-          if [ "${{ inputs.publish_latest }}" = "true" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            EXTRA="-t ${REGISTRY}/${{ matrix.os }}-hardened:latest"
-          fi
-          docker buildx build --push \
-            --platform "${PLATFORMS}" \
-            --provenance=true --sbom=true \
-            --build-arg BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-            --build-arg VCS_REF="${IMAGE_TAG}" \
-            --build-arg VERSION=1.0.0 \
-            -f base-images/${{ matrix.os }}/Dockerfile.${{ matrix.version }} \
-            -t ${REGISTRY}/${{ matrix.os }}-hardened:${{ matrix.version }} \
-            -t ${REGISTRY}/${{ matrix.os }}-hardened:${IMAGE_TAG} \
-            $EXTRA \
-            --cache-from type=gha,scope=${{ matrix.os }}-${{ matrix.version }} \
-            .
+          mkdir -p digests
+          printf '%s' "${METADATA}" > "digests/${ARCH}.json"
+          jq -r 'to_entries[] | "\(.key)\t\(.value["containerimage.digest"] // "-")"' "digests/${ARCH}.json"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ needs.plan.outputs.push == 'true' }}
+        with:
+          name: digests-${{ matrix.arch }}
+          path: digests/
+          retention-days: 1
+          if-no-files-found: error
 
   # ---------------------------------------------------------------------------
-  # Platform images that build directly on an OS base.
-  # Pulls the hardened base from GHCR, gates the platform, then pushes it.
-  # (Runs only when pushing, so the hardened base is available in the registry.)
+  # Stitch the per-arch digests into tagged multi-arch manifest lists.
   # ---------------------------------------------------------------------------
-  build-platform-images:
-    runs-on: ubuntu-latest
-    needs: build-base-images
-    timeout-minutes: 90
-    if: ${{ inputs.push_images && (inputs.build_scope == 'all' || inputs.build_scope == 'platform-only') }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: nginx
-            base_os: alpine
-            base_version: "3.24"
-          - platform: python
-            base_os: alpine
-            base_version: "3.24"
-          - platform: openjdk
-            base_os: alpine
-            base_version: "3.24"
-          - platform: aspnet
-            base_os: alpine
-            base_version: "3.24"
-          - platform: dotnet
-            base_os: alpine
-            base_version: "3.24"
+  merge:
+    needs: [plan, build]
+    if: ${{ needs.plan.outputs.push == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    env:
+      REGISTRY: ${{ needs.plan.outputs.registry }}
+      TAG_SUFFIXES: ${{ needs.plan.outputs.tag_suffixes }}
+      PUBLISH_LATEST: ${{ needs.plan.outputs.publish_latest }}
+      BUILD_DATE: ${{ needs.plan.outputs.build_date }}
+      VCS_REF: ${{ github.sha }}
+      SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
+      TARGETS: ${{ needs.plan.outputs.targets }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-      - name: Install Trivy
-        run: ./scripts/install-trivy.sh
-      - name: Log in to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
-          registry: ${{ env.GHCR_REGISTRY }}
-          username: ${{ secrets.GHCR_USERNAME || github.repository_owner }}
-          password: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
-      - name: Build platform image (amd64, loaded) for the CIS gate
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: digests-*
+          path: digests
+          merge-multiple: true
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create multi-arch tags
         run: |
-          docker buildx build --load \
-            --build-arg BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-            --build-arg VCS_REF="${IMAGE_TAG}" \
-            --build-arg VERSION=1.0.0 \
-            --build-arg BASE_IMAGE=${REGISTRY}/${{ matrix.base_os }}-hardened:${{ matrix.base_version }} \
-            -f platform-images/${{ matrix.platform }}/Dockerfile \
-            -t gate/${{ matrix.platform }}-platform:${IMAGE_TAG} \
-            --cache-from type=gha,scope=${{ matrix.platform }} \
-            --cache-to type=gha,mode=max,scope=${{ matrix.platform }} \
-            .
-      - name: CIS gate — Dockle + Trivy (hard fail)
-        run: ./scripts/cis-verify.sh gate/${{ matrix.platform }}-platform:${IMAGE_TAG}
-      - name: Build & push platform image (multi-arch) — only after passing the gate
-        run: |
-          EXTRA=""
-          if [ "${{ inputs.publish_latest }}" = "true" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            EXTRA="-t ${REGISTRY}/${{ matrix.platform }}-platform:latest"
-          fi
-          docker buildx build --push \
-            --platform "${PLATFORMS}" \
-            --provenance=true --sbom=true \
-            --build-arg BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-            --build-arg VCS_REF="${IMAGE_TAG}" \
-            --build-arg VERSION=1.0.0 \
-            --build-arg BASE_IMAGE=${REGISTRY}/${{ matrix.base_os }}-hardened:${{ matrix.base_version }} \
-            -f platform-images/${{ matrix.platform }}/Dockerfile \
-            -t ${REGISTRY}/${{ matrix.platform }}-platform:${IMAGE_TAG} \
-            -t ${REGISTRY}/${{ matrix.platform }}-platform:${{ matrix.platform }}-${{ matrix.base_os }}-${{ matrix.base_version }} \
-            $EXTRA \
-            --cache-from type=gha,scope=${{ matrix.platform }} \
-            .
+          eval "$(scripts/bake-env.sh --export)"
+          scripts/ci/merge-manifests.sh digests "${TARGETS}"
+          {
+            echo "### Published images"
+            echo '```'
+            cat published.txt
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: published-images
+          path: |
+            published.txt
+            primary.txt
+          retention-days: 30
 
   # ---------------------------------------------------------------------------
-  # JVM-derived platforms (Tomcat, Spring Boot) build on the openjdk-platform
-  # image produced above, so they run in a second stage.
-  # ---------------------------------------------------------------------------
-  build-jvm-platform-images:
-    runs-on: ubuntu-latest
-    needs: build-platform-images
-    timeout-minutes: 60
-    if: ${{ inputs.push_images && (inputs.build_scope == 'all' || inputs.build_scope == 'platform-only') }}
-    strategy:
-      fail-fast: false
-      matrix:
-        platform: [tomcat, springboot]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-      - name: Install Trivy
-        run: ./scripts/install-trivy.sh
-      - name: Log in to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          registry: ${{ env.GHCR_REGISTRY }}
-          username: ${{ secrets.GHCR_USERNAME || github.repository_owner }}
-          password: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
-      - name: Build JVM platform image (amd64, loaded) for the CIS gate
-        run: |
-          docker buildx build --load \
-            --build-arg BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-            --build-arg VCS_REF="${IMAGE_TAG}" \
-            --build-arg VERSION=1.0.0 \
-            --build-arg BASE_IMAGE=${REGISTRY}/openjdk-platform:${IMAGE_TAG} \
-            -f platform-images/${{ matrix.platform }}/Dockerfile \
-            -t gate/${{ matrix.platform }}-platform:${IMAGE_TAG} \
-            --cache-from type=gha,scope=${{ matrix.platform }} \
-            --cache-to type=gha,mode=max,scope=${{ matrix.platform }} \
-            .
-      - name: CIS gate — Dockle + Trivy (hard fail)
-        run: ./scripts/cis-verify.sh gate/${{ matrix.platform }}-platform:${IMAGE_TAG}
-      - name: Build & push JVM platform image (multi-arch) — only after passing the gate
-        run: |
-          docker buildx build --push \
-            --platform "${PLATFORMS}" \
-            --provenance=true --sbom=true \
-            --build-arg BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-            --build-arg VCS_REF="${IMAGE_TAG}" \
-            --build-arg VERSION=1.0.0 \
-            --build-arg BASE_IMAGE=${REGISTRY}/openjdk-platform:${IMAGE_TAG} \
-            -f platform-images/${{ matrix.platform }}/Dockerfile \
-            -t ${REGISTRY}/${{ matrix.platform }}-platform:${IMAGE_TAG} \
-            --cache-from type=gha,scope=${{ matrix.platform }} \
-            .
-
-  # ---------------------------------------------------------------------------
-  # Publish the full vulnerability/CIS report to the GitHub Security tab.
+  # Full vulnerability report of what was published -> GitHub Security tab.
   # ---------------------------------------------------------------------------
   security-report:
-    runs-on: ubuntu-latest
-    needs: [build-base-images]
-    if: ${{ always() && inputs.push_images }}
+    needs: merge
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: published-images
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Trivy
         run: ./scripts/install-trivy.sh
-      - name: Log in to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          registry: ${{ env.GHCR_REGISTRY }}
-          username: ${{ secrets.GHCR_USERNAME || github.repository_owner }}
-          password: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
-      - name: Scan published base images and upload SARIF
+      - name: Scan published images
         run: |
-          ./scripts/generate-github-matrix.sh scanning | awk '/-/{print $2}' | while read -r image; do
-            ref="${REGISTRY}/$(basename "$image")"
-            echo "Scanning $ref ..."
-            trivy image --severity HIGH,CRITICAL --format sarif \
-              --output "trivy-$(basename "$image" | tr ':/' '--').sarif" "$ref" || true
-          done
+          mkdir -p sarif
+          while read -r image; do
+            out="sarif/$(echo "${image##*/}" | tr ':' '-').sarif"
+            trivy image --quiet --severity HIGH,CRITICAL --format sarif --output "${out}" "${image}"
+            # One SARIF run per image, each with its own category, so code
+            # scanning keeps them apart instead of rejecting duplicate runs.
+            jq --arg id "trivy/${image##*/}/" '.runs[].automationDetails = {id: $id}' "${out}" > "${out}.tmp"
+            mv "${out}.tmp" "${out}"
+          done < primary.txt
+          jq -s '{"$schema": .[0]["$schema"], version: .[0].version, runs: map(.runs[])}' sarif/*.sarif > trivy-images.sarif
       - uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
-        if: always()
         with:
-          sarif_file: '.'
+          sarif_file: trivy-images.sarif
+
+  # ---------------------------------------------------------------------------
+  # Promote to Azure Container Registry when the repo is wired to Azure
+  # (scripts/deploy/azure-bootstrap.sh sets ACR_NAME + AZURE_* variables).
+  # OIDC only: no ACR admin password or client secret is stored anywhere.
+  # ---------------------------------------------------------------------------
+  promote-acr:
+    needs: merge
+    if: ${{ vars.ACR_NAME != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+    env:
+      ACR_NAME: ${{ vars.ACR_NAME }}
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: published-images
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Azure login (OIDC) + ACR login
+        run: ./scripts/ci/azure-oidc-login.sh
+      - name: Promote all published tags to ACR
+        run: ./scripts/promote-to-acr.sh --from-file published.txt

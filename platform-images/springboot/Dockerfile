@@ -1,31 +1,28 @@
 # syntax=docker/dockerfile:1
 # Spring Boot platform image — built on the CIS-hardened Alpine OpenJDK platform
 # image, runs non-root. BASE_IMAGE must be an openjdk-platform image (has a JRE).
-ARG BASE_IMAGE=ghcr.io/your-org/openjdk-platform:25-alpine-3.24
+ARG BASE_IMAGE=ghcr.io/robertncl/openjdk-platform:25-alpine3.24
 FROM ${BASE_IMAGE}
 
-ARG BUILD_DATE
-ARG VCS_REF
-ARG VERSION=1.0.0
 ARG SPRINGBOOT_VERSION=4.1
 
 LABEL maintainer="Golden Image Build System" \
-      org.opencontainers.image.created="${BUILD_DATE}" \
-      org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.vendor="Golden Image Build System" \
       org.opencontainers.image.title="Spring Boot Platform (CIS-hardened)" \
       org.opencontainers.image.description="Spring Boot ${SPRINGBOOT_VERSION} runtime base on a CIS-hardened Alpine OpenJDK base, non-root" \
-      org.opencontainers.image.source="https://github.com/your-org/golden-image" \
       org.opencontainers.image.licenses="MIT" \
       io.golden-image.cis.benchmark="CIS Docker Benchmark v1.7.0"
 
 USER root
 
-COPY scripts/container/harden-runtime.sh /tmp/harden-runtime.sh
-RUN apk update && apk upgrade --no-cache && \
+# Nothing to install on top of the JRE; the upgrade only matters when this is
+# built against an older published openjdk-platform tag.
+ARG PATCH_EPOCH
+RUN --mount=type=bind,source=scripts/container,target=/opt/golden-scripts \
+    echo "patch epoch: ${PATCH_EPOCH:-unset}" && \
+    apk upgrade --no-cache && \
     chown -R appuser:appuser /app && \
-    sh /tmp/harden-runtime.sh && rm -f /tmp/harden-runtime.sh
+    sh /opt/golden-scripts/harden-runtime.sh
 
 ENV SPRING_PROFILES_ACTIVE=docker \
     SERVER_PORT=8080 \
