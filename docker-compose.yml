@@ -93,14 +93,14 @@ services:
 
   # Security scanning
   trivy-scanner:
-    image: aquasec/trivy:0.76.0@sha256:2416d1f74045b57274df1a340eee6b510cacd73c66a6ccb8da092b117eb7d222
+    image: aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
     container_name: trivy-scanner
     command: ["image", "--severity", "HIGH,CRITICAL", "${ACR_LOGIN_SERVER:-localhost}/debian-hardened:latest"]
     profiles: ["security"]
 
   # Build environment
   build-env:
-    image: docker:29.9.1-cli
+    image: docker:29.9.2-cli
     container_name: build-env
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
