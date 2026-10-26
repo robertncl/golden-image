@@ -25,7 +25,7 @@ fi
 
 TRIVY_SEVERITY="${TRIVY_SEVERITY:-HIGH,CRITICAL}"
 TRIVY_SCANNERS="${TRIVY_SCANNERS:-vuln,secret,misconfig}"
-TRIVY_VERSION="${TRIVY_VERSION:-0.76.0}"
+TRIVY_VERSION="${TRIVY_VERSION:-0.76.1}"
 # Gate only on vulnerabilities that have an available fix — an image already
 # patched to the latest packages cannot remediate CVEs upstream hasn't fixed,
 # so blocking on them would be unactionable. Set IGNORE_UNFIXED=0 to gate on all.
